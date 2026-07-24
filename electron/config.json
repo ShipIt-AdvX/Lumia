@@ -13,5 +13,13 @@
     "marginBottom": 20,
     "autoDismissMs": 12000
   },
+  "float": {
+    "marginTop": 16,
+    "marginRight": 16,
+    "gap": 12,
+    "handleWidth": 8,
+    "autoRetractMs": 10000,
+    "animMs": 260
+  },
   "pollIntervalMs": 2000
 }

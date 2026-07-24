@@ -1,15 +1,8 @@
-"""Coding-time limit engine.
+"""开发时长限制引擎.
 
-Rules (from the product spec):
-
-1. Daily quota = ``n + k*m`` hours, where ``n`` is a fixed daily allowance,
-   ``k`` a conversion coefficient and ``m`` sleep hours.
-2. When the quota is exhausted the developer may invoke a one-time **delay**
-   (60-90 min). Only one delay is allowed within any 2-day window.
-3. Using a delay grants a final ``delay_minutes`` block; once it ends the day is
-   hard-locked (no more development today).
-4. Each delay used earlier in the same ISO week shrinks ``k`` by a factor of
-   0.8 (``k_eff = k * 0.8**delays_this_week``); the penalty resets every Monday.
+额度 = n + k*m 小时 (n 固定额度, k 睡眠转化系数, m 睡眠时长).
+额度用尽后可用一次延时 (两天内仅一次), 延时结束当天硬锁定.
+本周之前每用一次延时, k 打一次八折 (k_eff = k * 0.8**次数), 每周一重置.
 """
 from __future__ import annotations
 
@@ -26,7 +19,7 @@ def _today() -> str:
 
 
 def _week_start(d: date) -> date:
-    return d - timedelta(days=d.weekday())  # Monday
+    return d - timedelta(days=d.weekday())  # 周一作为一周起点
 
 
 class CodingTracker:
@@ -37,9 +30,8 @@ class CodingTracker:
         self._state: str = "idle"
         self._active_date = _today()
 
-    # -- quota maths -----------------------------------------------------
     def _penalty_exponent(self, today: date) -> int:
-        """Number of distinct delay days earlier this ISO week (before today)."""
+        """本周内、今天之前用过延时的不同天数."""
         start = _week_start(today)
         yesterday = today - timedelta(days=1)
         if yesterday < start:
@@ -62,7 +54,6 @@ class CodingTracker:
     def _delay_minutes(self) -> int:
         return int(self._cfg.get("coding", "delay_minutes", default=60))
 
-    # -- delay availability ---------------------------------------------
     def delay_available(self, day: dict[str, Any]) -> bool:
         if day["delay_used"]:
             return False
@@ -70,9 +61,8 @@ class CodingTracker:
         if last is None:
             return True
         gap = (date.today() - date.fromisoformat(last)).days
-        return gap >= 2  # only one delay within any 2-day window
+        return gap >= 2  # 两天内只允许一次延时
 
-    # -- per-tick update -------------------------------------------------
     def tick(self, coding_now: bool, dt: int = 1) -> None:
         today = _today()
         if coding_now:
@@ -109,7 +99,6 @@ class CodingTracker:
                 actions=[{"id": "achievements", "label": "查看成就墙"}],
             )
 
-    # -- snapshot for API/state -----------------------------------------
     def snapshot(self) -> dict[str, Any]:
         today = date.today()
         day = self._db.get_day(today.isoformat())
@@ -131,7 +120,7 @@ class CodingTracker:
         elif used >= allowed:
             state = "limit_reached" if self.delay_available(day) else "day_locked"
         else:
-            from . import activity  # local import to avoid cost when unused
+            from . import activity  # 局部导入, 用不到时省开销
 
             coding_now = activity.is_coding(
                 self._cfg.get("coding", "dev_processes", default=[]),
@@ -139,7 +128,7 @@ class CodingTracker:
             )
             state = "coding" if coding_now else "idle"
 
-        # Persist a hard lock so a restart keeps the day closed.
+        # 落库硬锁, 重启后当天仍保持锁定
         if state == "day_locked" and not day["locked"]:
             self._db.set_day(today.isoformat(), locked=1)
 
@@ -163,7 +152,6 @@ class CodingTracker:
             },
         }
 
-    # -- actions ---------------------------------------------------------
     def request_delay(self) -> dict[str, Any]:
         today = date.today()
         day = self._db.get_day(today.isoformat())

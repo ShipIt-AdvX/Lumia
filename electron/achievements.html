@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <title>Lumia 今日成就墙</title>
+  <link rel="stylesheet" href="chrome.css" />
   <style>
-    body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-      background: #1c1b22; color: #e8e5ef; padding: 20px 24px; }
+    .ach-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }
     h1 { font-size: 20px; color: #f5b7ad; margin: 0 0 4px; }
     .sub { opacity: 0.6; font-size: 13px; margin-bottom: 18px; }
     h2 { font-size: 15px; margin: 22px 0 8px; color: #cfc9dc; }
@@ -20,15 +20,29 @@
   </style>
 </head>
 <body>
-  <h1>今日成就墙</h1>
-  <div class="sub" id="sub">加载中…</div>
+  <div class="lumia-window">
+    <div class="lumia-titlebar">
+      <button class="tb-btn tb-fs" id="tbFs">全屏</button>
+      <div class="tb-title" id="tbTitle">Lumia · 今日成就墙</div>
+      <button class="tb-btn tb-close" id="tbClose">✕</button>
+    </div>
 
-  <h2>Commits</h2>
-  <div id="commits"><div class="empty">加载中…</div></div>
+    <div class="lumia-body">
+      <div class="ach-body">
+        <h1>今日成就墙</h1>
+        <div class="sub" id="sub">加载中…</div>
 
-  <h2>今日灵感</h2>
-  <div id="ideas"><div class="empty">加载中…</div></div>
+        <h2>Commits</h2>
+        <div id="commits"><div class="empty">加载中…</div></div>
 
+        <h2>今日灵感</h2>
+        <div id="ideas"><div class="empty">加载中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lumia-handle"></div>
+  <script src="chrome.js"></script>
   <script>
     function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 
@@ -40,7 +54,7 @@
         const box = document.getElementById('commits');
         box.innerHTML = '';
         if (!ach.repos || ach.repos.length === 0) {
-          box.innerHTML = '<div class="empty">未配置 git 仓库（config.json -> git.repos）。</div>';
+          box.innerHTML = '<div class="empty">未配置 git 仓库（设置 → 成就墙）。</div>';
         }
         for (const repo of ach.repos || []) {
           const head = document.createElement('div');

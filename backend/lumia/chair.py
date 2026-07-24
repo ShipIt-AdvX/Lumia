@@ -1,9 +1,4 @@
-"""Chair relay integration.
-
-Mirrors HARDWARE_PROTOCOL.md: on a sedentary nudge the PC asks the ergonomic
-chair to enter "stretch" mode. ``simulate`` mode only logs; ``relay`` mode
-fires a short pulse via the ESP32 relay's ``/stretch`` endpoint.
-"""
+"""椅子继电器联动: 久坐提醒时让椅子进入拉伸模式. simulate 只记日志; relay 通过 ESP32 的 /stretch 发脉冲."""
 from __future__ import annotations
 
 import urllib.request
@@ -23,7 +18,6 @@ def stretch(config: Config, source: str = "sit_nudge") -> dict[str, Any]:
             with urllib.request.urlopen(req, timeout=3) as resp:
                 body = resp.read().decode("utf-8", "replace")
             return {"ok": True, "mode": mode, "source": source, "relay_response": body}
-        except Exception as exc:  # network / device errors are non-fatal
+        except Exception as exc:  # 网络/设备错误不致命
             return {"ok": False, "mode": mode, "source": source, "error": str(exc)}
-    # simulate
     return {"ok": True, "mode": "simulate", "source": source, "action": "stretch_pulse"}

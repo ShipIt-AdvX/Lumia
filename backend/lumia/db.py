@@ -1,9 +1,4 @@
-"""SQLite persistence.
-
-A single connection guarded by a lock is plenty for this local, low-traffic
-service. Stores per-day coding usage, delay history, captured ideas, sit
-events and a reminder log.
-"""
+"""SQLite 持久化: 单连接 + 锁, 存每日开发用时、延时记录、灵感、久坐与提醒日志."""
 from __future__ import annotations
 
 import sqlite3
@@ -16,11 +11,11 @@ DB_PATH = BASE_DIR / "lumia.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS coding_daily (
-    date            TEXT PRIMARY KEY,   -- ISO date, local
+    date            TEXT PRIMARY KEY,
     used_seconds    INTEGER NOT NULL DEFAULT 0,
-    delay_used      INTEGER NOT NULL DEFAULT 0,   -- 0/1
-    delay_ends_at   TEXT,               -- ISO timestamp or NULL
-    locked          INTEGER NOT NULL DEFAULT 0    -- 0/1 hard stop for the day
+    delay_used      INTEGER NOT NULL DEFAULT 0,
+    delay_ends_at   TEXT,
+    locked          INTEGER NOT NULL DEFAULT 0    -- 当天硬锁定标记
 );
 
 CREATE TABLE IF NOT EXISTS delay_log (
@@ -33,10 +28,10 @@ CREATE TABLE IF NOT EXISTS delay_log (
 CREATE TABLE IF NOT EXISTS ideas (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          TEXT NOT NULL,
-    kind        TEXT NOT NULL,          -- 'text' | 'audio'
+    kind        TEXT NOT NULL,          -- 取值 text 或 audio
     text        TEXT,
     audio_path  TEXT,
-    source      TEXT,                   -- e.g. 't5ai', 'orangepi', 'manual'
+    source      TEXT,                   -- 来源, 如 t5ai / orangepi / manual
     uploaded    INTEGER NOT NULL DEFAULT 1
 );
 
@@ -65,7 +60,6 @@ class Database:
             self._conn.executescript(SCHEMA)
             self._conn.commit()
 
-    # -- generic helpers -------------------------------------------------
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock:
             cur = self._conn.execute(sql, params)
@@ -80,7 +74,6 @@ class Database:
         with self._lock:
             return self._conn.execute(sql, params).fetchone()
 
-    # -- coding_daily ----------------------------------------------------
     def get_day(self, date: str) -> dict[str, Any]:
         row = self.query_one("SELECT * FROM coding_daily WHERE date = ?", (date,))
         if row is None:

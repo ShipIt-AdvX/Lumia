@@ -1,0 +1,129 @@
+/* Shared frameless-window chrome for Lumia float windows
+   (settings / achievements). Provides the custom title bar, rounded
+   window shell, base dark theme and common form controls. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;               /* transparent frame for animated float */
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #e8e5ef;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* --- window shell (rounded, clipped) --- */
+.lumia-window {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #1c1b22;
+  border: 1px solid rgba(224, 136, 122, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+body.is-fullscreen .lumia-window {
+  border-radius: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* --- title bar --- */
+.lumia-titlebar {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  background: rgba(16, 15, 20, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-app-region: drag;              /* whole bar draggable */
+}
+.lumia-titlebar .tb-btn { -webkit-app-region: no-drag; }
+
+.tb-fs {
+  font-size: 12px;
+  color: #f5b7ad;
+  background: transparent;
+  border: 1px solid rgba(245, 183, 173, 0.4);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tb-fs:hover { background: rgba(245, 183, 173, 0.14); }
+
+.tb-title {
+  flex: 1;
+  text-align: center;
+  font-size: 12.5px;
+  color: #b9b4c6;
+  letter-spacing: 0.3px;
+}
+
+.tb-close {
+  width: 44px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #b9b4c6;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tb-close:hover { background: #e81123; color: #fff; }
+
+/* --- retract handle (visible sliver when the float is retracted) --- */
+.lumia-handle {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100vh;
+  background: linear-gradient(180deg, #e0887a, #b56a75);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+body.is-retracted .lumia-handle { opacity: 0.9; }
+
+.lumia-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* --- common form controls --- */
+input[type="text"],
+input[type="number"],
+input[type="time"],
+select {
+  font: inherit;
+  font-size: 13px;
+  color: #e8e5ef;
+  background: #14131a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 9px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+input:focus, select:focus { border-color: #e0887a; }
+input:disabled, select:disabled { opacity: 0.45; }
+
+button.btn {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  background: #2f2d38;
+  color: #e8e5ef;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+button.btn:hover { background: #3b3947; }
+button.btn.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
+button.btn.primary:hover { background: #ec9a8d; }

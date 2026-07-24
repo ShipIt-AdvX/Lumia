@@ -1,8 +1,4 @@
-"""Achievement wall — today's git commits (and a best-effort build count).
-
-When the coding quota is spent we surface what the developer actually shipped
-today by scanning the configured local repositories with ``git log``.
-"""
+"""成就墙: 用 git log 扫描配置的本地仓库, 汇总今天的提交."""
 from __future__ import annotations
 
 import subprocess
@@ -32,7 +28,7 @@ def commits_today(repo: Path) -> list[dict[str, str]]:
         [
             "log",
             f"--since={since}",
-            "--pretty=format:%h\x1f%an\x1f%cI\x1f%s",
+            "--pretty=format:%h\x1f%an\x1f%cI\x1f%s",  # 用 \x1f (单元分隔符) 分隔字段, 避免和提交信息冲突
             "--all",
         ],
     )

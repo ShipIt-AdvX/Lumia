@@ -1,9 +1,4 @@
-"""Configuration loading / saving.
-
-The runtime config lives at ``backend/config.json``. On first run it is created
-by copying ``config.example.json``. All access goes through a single ``Config``
-instance so the FastAPI layer and the background loops share one source of truth.
-"""
+"""配置读写: 运行期配置在 backend/config.json, 首次运行从 config.example.json 复制. 全局共用一个 Config 实例."""
 from __future__ import annotations
 
 import json
@@ -18,7 +13,7 @@ EXAMPLE_PATH = BASE_DIR / "config.example.json"
 
 
 class Config:
-    """Thread-safe JSON-backed configuration."""
+    """线程安全、以 JSON 为底的配置."""
 
     def __init__(self, path: Path = CONFIG_PATH) -> None:
         self._path = path
@@ -29,7 +24,7 @@ class Config:
     def load(self) -> None:
         with self._lock:
             if not self._path.exists():
-                # Seed from the example on first run.
+                # 首次运行时用示例文件初始化
                 seed = json.loads(EXAMPLE_PATH.read_text(encoding="utf-8"))
                 self._path.write_text(
                     json.dumps(seed, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -56,7 +51,7 @@ class Config:
             return deepcopy(node)
 
     def update(self, patch: dict[str, Any]) -> dict[str, Any]:
-        """Deep-merge ``patch`` into the config and persist it."""
+        """深合并 patch 到配置并落盘."""
         with self._lock:
             _deep_merge(self._data, patch)
             self.save()

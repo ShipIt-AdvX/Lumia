@@ -1,13 +1,3 @@
-"""Lumia local brain (backend).
-
-The original heavy desktop daemon was removed from the repo; this package is a
-lightweight, single-process re-implementation of the "PC local brain":
-
-* coding-time limiting with a one-time daily delay,
-* activity (foreground dev app) tracking,
-* eat / sleep / move reminders + sedentary detection,
-* idea capture endpoints (matches HARDWARE_PROTOCOL.md),
-* today's git commits as an "achievement wall".
-"""
+"""Lumia 本地大脑 (后端): 开发时长限制、活动追踪、吃饭/睡觉/活动提醒与久坐检测、灵感捕获、今日 git 成就墙."""
 
 __version__ = "0.1.0"

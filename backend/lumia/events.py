@@ -1,9 +1,4 @@
-"""In-memory event bus.
-
-Background loops (coding limit, reminders) push events here; the Electron
-front-end polls ``/api/events/poll?after=<id>`` to render non-focus popups.
-Events are monotonically numbered so the client can resume without gaps.
-"""
+"""内存事件总线: 后台循环推事件, 前端轮询 /api/events/poll?after=<id> 取增量. 事件按 id 单调递增, 便于断点续拉."""
 from __future__ import annotations
 
 import threading
