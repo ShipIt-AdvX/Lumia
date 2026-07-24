@@ -34,7 +34,6 @@
     const titleEl = document.getElementById('title');
     const msgEl = document.getElementById('msg');
     const actionsEl = document.getElementById('actions');
-    let dismissTimer = null;
 
     document.getElementById('close').addEventListener('click', () => window.lumia.dismiss());
 
@@ -51,12 +50,9 @@
         actionsEl.appendChild(btn);
       });
       const dismiss = document.createElement('button');
-      dismiss.textContent = '知道了';
+      dismiss.textContent = '确定';
       dismiss.addEventListener('click', () => window.lumia.dismiss());
       actionsEl.appendChild(dismiss);
-
-      if (dismissTimer) clearTimeout(dismissTimer);
-      dismissTimer = setTimeout(() => window.lumia.dismiss(), 12000);
     });
   </script>
 </body>

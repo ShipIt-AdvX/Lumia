@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Lumia 开发者面板</title>
+  <link rel="stylesheet" href="chrome.css" />
+  <style>
+    .dev-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; }
+    .dev-group { margin-bottom: 16px; }
+    .dev-group h3 { font-size: 12px; color: #7f7a8c; margin: 0 0 8px; font-weight: 600;
+      letter-spacing: 0.4px; }
+    .dev-grid { display: flex; flex-direction: column; gap: 6px; }
+    .dev-grid .btn { text-align: left; }
+    .dev-tip { font-size: 11.5px; color: #6f6b7c; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="lumia-window">
+    <div class="lumia-titlebar">
+      <button class="tb-btn tb-fs" id="tbFs">全屏</button>
+      <div class="tb-title" id="tbTitle">Lumia · 开发者面板</div>
+      <button class="tb-btn tb-close" id="tbClose">✕</button>
+    </div>
+
+    <div class="lumia-body">
+      <div class="dev-body">
+        <div class="dev-group">
+          <h3>提醒弹窗</h3>
+          <div class="dev-grid" id="reminders"></div>
+        </div>
+        <div class="dev-group">
+          <h3>开发时长弹窗</h3>
+          <div class="dev-grid" id="coding"></div>
+        </div>
+        <div class="dev-group">
+          <h3>窗口 / 状态</h3>
+          <div class="dev-grid" id="windows"></div>
+        </div>
+        <div class="dev-tip">点一下即刻弹出，方便测试喵~</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lumia-handle"></div>
+  <script src="chrome.js"></script>
+  <script>
+    const delayMin = 60;
+    const reminderPresets = [
+      { label: '该睡觉了', event: { type: 'reminder_sleep', title: '该睡觉了', message: '别熬了，关机前把今天投到墙上看看吧。' } },
+      { label: '该吃饭了', event: { type: 'reminder_meal', title: '该吃饭了', message: '离开键盘，去好好吃一顿。' } },
+      { label: '喝口水', event: { type: 'reminder_water', title: '喝口水', message: '补点水分，顺便让眼睛歇一会儿。' } },
+      { label: '起来动一动', event: { type: 'reminder_move', title: '起来动一动', message: '站起来伸展一下，走两步。' } },
+      { label: '久坐提醒', event: { type: 'reminder_sedentary', title: '久坐提醒', message: '你已经连续坐了约 60 分钟，起来拉伸一下。' } },
+    ];
+    const codingPresets = [
+      { label: '时长已用尽（带延时）', event: { type: 'coding_limit', title: '今日开发时长已用尽',
+        message: '该收尾了。需要的话可以使用一次延时（今天最后一段）。',
+        actions: [{ id: 'delay', label: '延时 ' + delayMin + ' 分钟' }, { id: 'achievements', label: '看看今天的成绩' }] } },
+      { label: '延时已开启', event: { type: 'coding_delay_started', title: '延时已开启', message: '给你多争取一段时间，收好这最后一程。' } },
+      { label: '今天到此为止', event: { type: 'coding_locked', title: '今天到此为止',
+        message: '开发时长（含延时）已结束。去看看今天做成了什么吧。',
+        actions: [{ id: 'achievements', label: '查看成就墙' }] } },
+    ];
+
+    function makeBtn(parent, label, onClick) {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = label;
+      b.addEventListener('click', onClick);
+      parent.appendChild(b);
+    }
+
+    const remEl = document.getElementById('reminders');
+    reminderPresets.forEach((p) => makeBtn(remEl, p.label, () => window.lumia.dev.emit(p.event)));
+    const codeEl = document.getElementById('coding');
+    codingPresets.forEach((p) => makeBtn(codeEl, p.label, () => window.lumia.dev.emit(p.event)));
+
+    const winEl = document.getElementById('windows');
+    makeBtn(winEl, '打开设置', () => window.lumia.dev.open('settings'));
+    makeBtn(winEl, '打开成就墙', () => window.lumia.dev.open('achievements'));
+    makeBtn(winEl, '今日状态弹窗', () => window.lumia.dev.emit({
+      type: 'status', title: 'Lumia 今日状态', message: '已开发 42 / 120 分钟 · 状态 running',
+      actions: [{ id: 'achievements', label: '成就墙' }],
+    }));
+  </script>
+</body>
+</html>

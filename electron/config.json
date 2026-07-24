@@ -18,6 +18,7 @@
     "marginRight": 16,
     "gap": 12,
     "handleWidth": 8,
+    "titleHeight": 40,
     "autoRetractMs": 10000,
     "animMs": 260,
     "fps": 120

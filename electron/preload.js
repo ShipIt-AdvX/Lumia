@@ -20,14 +20,16 @@ contextBridge.exposeInMainWorld('lumia', {
   win: {
     close: () => ipcRenderer.send('win-close'),
     toggleFullscreen: () => ipcRenderer.send('win-toggle-fullscreen'),
-    setHover: (hovering) => ipcRenderer.send('float-hover', hovering),
     onFullscreenChanged: (cb) =>
       ipcRenderer.on('fullscreen-changed', (_e, isFull) => cb(isFull)),
-    onRetractedChanged: (cb) =>
-      ipcRenderer.on('retracted-changed', (_e, retracted) => cb(retracted)),
   },
 
   pickDirectory: () => ipcRenderer.invoke('pick-directory'),
+
+  dev: {
+    emit: (event) => ipcRenderer.send('dev-emit', event),
+    open: (key) => ipcRenderer.send('dev-open', key),
+  },
 
   fetchJSON: async (pathname) => {
     const res = await fetch(baseUrl + pathname);
