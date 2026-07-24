@@ -35,9 +35,7 @@ body.is-fullscreen .lumia-window {
   padding: 0 8px 0 10px;
   background: rgba(16, 15, 20, 0.55);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  -webkit-app-region: drag;
 }
-.lumia-titlebar .tb-btn { -webkit-app-region: no-drag; }
 
 .tb-fs {
   font-size: 12px;
@@ -57,7 +55,6 @@ body.is-fullscreen .lumia-window {
   font-size: 12.5px;
   color: #b9b4c6;
   letter-spacing: 0.3px;
-  -webkit-app-region: no-drag;
   cursor: pointer;
 }
 .tb-title:hover { color: #e8e5ef; }
