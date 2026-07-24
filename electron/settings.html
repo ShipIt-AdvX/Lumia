@@ -76,25 +76,25 @@
     <div class="lumia-body">
       <div class="settings-content">
         <nav class="settings-nav" id="nav">
-          <div class="nav-item active" data-panel="coding">开发时长</div>
+          <div class="nav-item active" data-panel="basic">基础设置</div>
           <div class="nav-item" data-panel="reminders">提醒</div>
-          <div class="nav-item" data-panel="sit">久坐</div>
-          <div class="nav-item" data-panel="chair">椅子</div>
           <div class="nav-item" data-panel="git">成就墙</div>
           <div class="nav-item" data-panel="server">服务</div>
         </nav>
 
         <main class="settings-main">
-          <section class="panel active" data-panel="coding">
-            <h2>开发时长</h2>
-            <div class="field"><label>每日固定额度 n</label><input type="number" step="0.5" min="0" data-path="coding.daily_fixed_hours"><span class="unit">小时</span></div>
-            <div class="field"><label>睡眠转化系数 k</label><input type="number" step="0.1" min="0" data-path="coding.conversion_k"></div>
-            <div class="field"><label>睡眠时长 m</label><input type="number" step="0.5" min="0" data-path="coding.sleep_hours"><span class="unit">小时</span></div>
+          <section class="panel active" data-panel="basic">
+            <h2>基础设置</h2>
             <div class="field"><label>延时时长</label><input type="number" step="5" min="60" max="90" data-path="coding.delay_minutes"><span class="unit">分钟（60–90）</span></div>
             <div class="field"><label>空闲阈值</label><input type="number" step="10" min="0" data-path="coding.idle_threshold_seconds"><span class="unit">秒</span></div>
             <div class="field col"><label>计入开发的进程</label><div class="tags" data-list="coding.dev_processes"></div>
               <div class="tag-add"><input type="text" placeholder="如 Code.exe，回车添加"><button class="btn" data-add>添加</button></div></div>
-            <div class="preview" id="quotaPreview"></div>
+            <div class="field"><label>久坐阈值</label><input type="number" step="5" min="1" data-path="sit.sedentary_minutes"><span class="unit">分钟</span></div>
+            <div class="field"><label>重复提醒间隔</label><input type="number" step="5" min="1" data-path="sit.renudge_minutes"><span class="unit">分钟</span></div>
+            <div class="field"><label>椅子模式</label>
+              <select data-path="chair.mode"><option value="simulate">模拟（仅日志）</option><option value="relay">继电器</option></select></div>
+            <div class="field"><label>继电器地址</label><input type="text" style="width:280px" data-path="chair.relay_url" id="relayUrl"></div>
+            <div class="field"><label></label><button class="btn" id="chairTest">测试拉伸</button><span class="unit" id="chairTestResult"></span></div>
           </section>
 
           <section class="panel" data-panel="reminders">
@@ -104,20 +104,6 @@
               <div class="tag-add"><input type="time"><button class="btn" data-add>添加</button></div></div>
             <div class="field"><label>喝水间隔</label><input type="number" step="5" min="0" data-path="reminders.water_interval_min"><span class="unit">分钟</span></div>
             <div class="field"><label>活动间隔</label><input type="number" step="5" min="0" data-path="reminders.move_interval_min"><span class="unit">分钟</span></div>
-          </section>
-
-          <section class="panel" data-panel="sit">
-            <h2>久坐</h2>
-            <div class="field"><label>久坐阈值</label><input type="number" step="5" min="1" data-path="sit.sedentary_minutes"><span class="unit">分钟</span></div>
-            <div class="field"><label>重复提醒间隔</label><input type="number" step="5" min="1" data-path="sit.renudge_minutes"><span class="unit">分钟</span></div>
-          </section>
-
-          <section class="panel" data-panel="chair">
-            <h2>椅子</h2>
-            <div class="field"><label>模式</label>
-              <select data-path="chair.mode"><option value="simulate">模拟（仅日志）</option><option value="relay">继电器</option></select></div>
-            <div class="field"><label>继电器地址</label><input type="text" style="width:280px" data-path="chair.relay_url" id="relayUrl"></div>
-            <div class="field"><label></label><button class="btn" id="chairTest">测试拉伸</button><span class="unit" id="chairTestResult"></span></div>
           </section>
 
           <section class="panel" data-panel="git">
@@ -149,6 +135,7 @@
       <div class="overlay-title">更改即将生效</div>
       <div class="overlay-count"><b id="countNum">15</b> 秒后应用到后端</div>
       <button class="btn" id="undoSave">撤销保存</button>
+      <button class="btn primary" id="applyNow">立即生效</button>
       <div class="overlay-bar"><div id="overlayBarFill"></div></div>
     </div>
   </div>

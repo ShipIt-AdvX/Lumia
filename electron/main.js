@@ -156,7 +156,6 @@ function createFloat({ key, file, width, height, title }) {
     const st = floatState.get(existing.id);
     setHover(existing, true);
     existing.moveTop();
-    existing.focus();
     setHover(existing, false);
     return existing;
   }
@@ -166,6 +165,8 @@ function createFloat({ key, file, width, height, title }) {
     transparent: true,
     resizable: false,
     maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
     alwaysOnTop: true,
     show: false,
     backgroundColor: '#00000000',

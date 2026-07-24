@@ -44,7 +44,6 @@
     dirty = true;
     saveDraft();
     setStatus('有未保存的更改', 'dirty');
-    renderQuotaPreview();
   }
 
   function coerce(input, raw) {
@@ -62,7 +61,6 @@
       input.value = val;
     });
     updateChairEnabled();
-    renderQuotaPreview();
   }
 
   function bindFields() {
@@ -128,16 +126,6 @@
 
   function renderLists() {
     document.querySelectorAll('[data-list]').forEach(renderList);
-  }
-
-  function renderQuotaPreview() {
-    const el = document.getElementById('quotaPreview');
-    if (!el) return;
-    const n = parseFloat(getPath(working, 'coding.daily_fixed_hours')) || 0;
-    const k = parseFloat(getPath(working, 'coding.conversion_k')) || 0;
-    const m = parseFloat(getPath(working, 'coding.sleep_hours')) || 0;
-    const total = n + k * m;
-    el.textContent = `每日额度 = n + k×m = ${n} + ${k}×${m} = ${total.toFixed(2)} 小时（${Math.round(total * 60)} 分钟）`;
   }
 
   function updateChairEnabled() {
@@ -216,6 +204,11 @@
     setStatus('已撤销保存，更改仍暂存', 'dirty');
   }
 
+  function applyNow() {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    commitSave();
+  }
+
   async function commitSave() {
     overlay.classList.remove('show');
     setStatus('正在保存…');
@@ -236,6 +229,7 @@
   function bindSaveReset() {
     document.getElementById('saveBtn').addEventListener('click', beginSave);
     document.getElementById('undoSave').addEventListener('click', cancelSave);
+    document.getElementById('applyNow').addEventListener('click', applyNow);
     document.getElementById('resetBtn').addEventListener('click', () => {
       if (countdownTimer) cancelSave();
       working = clone(baseline);
