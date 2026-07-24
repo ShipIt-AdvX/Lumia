@@ -1,0 +1,159 @@
+"""FastAPI application: routes + background loops.
+
+Single-process "local brain". Two asyncio loops run for the lifetime of the
+app: a 1-second coding-time ticker and a 30-second reminder scheduler. The
+Electron front-end talks to this over localhost HTTP.
+"""
+from __future__ import annotations
+
+import asyncio
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import FastAPI, File, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+from . import activity, chair, gitstats, ideas
+from .coding import CodingTracker
+from .config import Config
+from .db import Database
+from .events import EventBus
+from .reminders import Reminders
+
+# -- singletons ---------------------------------------------------------
+config = Config()
+db = Database()
+bus = EventBus()
+tracker = CodingTracker(config, db, bus)
+reminders = Reminders(config, db, bus)
+
+
+# -- request models -----------------------------------------------------
+class TextIdea(BaseModel):
+    text: str
+    source: str = "manual"
+
+
+class SitReport(BaseModel):
+    seated: bool
+    pressure: float | None = None
+
+
+class ChairRequest(BaseModel):
+    source: str = "manual"
+
+
+# -- background loops ---------------------------------------------------
+async def _coding_loop() -> None:
+    while True:
+        try:
+            coding_now = activity.is_coding(
+                config.get("coding", "dev_processes", default=[]),
+                float(config.get("coding", "idle_threshold_seconds", default=60)),
+            )
+            tracker.tick(coding_now, dt=1)
+        except Exception:  # never let the loop die
+            pass
+        await asyncio.sleep(1)
+
+
+async def _reminder_loop() -> None:
+    while True:
+        try:
+            reminders.tick()
+        except Exception:
+            pass
+        await asyncio.sleep(30)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    tasks = [asyncio.create_task(_coding_loop()), asyncio.create_task(_reminder_loop())]
+    try:
+        yield
+    finally:
+        for task in tasks:
+            task.cancel()
+
+
+app = FastAPI(title="Lumia Local Brain", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # local-only service
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# -- meta ---------------------------------------------------------------
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    return {"ok": True, "service": "lumia", "version": app.version}
+
+
+@app.get("/api/state")
+def state() -> dict[str, Any]:
+    return {
+        "coding": tracker.snapshot(),
+        "sit": reminders.sit_snapshot(),
+        "latest_event_id": bus.latest_id(),
+    }
+
+
+# -- coding limit -------------------------------------------------------
+@app.post("/api/coding/delay")
+def coding_delay() -> dict[str, Any]:
+    return tracker.request_delay()
+
+
+# -- events -------------------------------------------------------------
+@app.get("/api/events/poll")
+def events_poll(after: int = Query(0, ge=0)) -> dict[str, Any]:
+    evts = bus.poll(after)
+    return {"events": evts, "latest_id": bus.latest_id()}
+
+
+# -- idea capture (mirrors HARDWARE_PROTOCOL.md) ------------------------
+@app.post("/api/capture/text")
+def capture_text(body: TextIdea) -> dict[str, Any]:
+    return ideas.add_text(db, body.text, source=body.source)
+
+
+@app.post("/api/capture/audio")
+async def capture_audio(file: UploadFile = File(...)) -> dict[str, Any]:
+    content = await file.read()
+    return ideas.add_audio(db, content, file.filename or "capture.wav", source="t5ai")
+
+
+@app.get("/api/ideas")
+def get_ideas(limit: int = Query(100, ge=1, le=1000)) -> dict[str, Any]:
+    return {"ideas": ideas.list_ideas(db, limit)}
+
+
+# -- sit / chair --------------------------------------------------------
+@app.post("/api/sit")
+def report_sit(body: SitReport) -> dict[str, Any]:
+    return reminders.update_sit(body.seated, body.pressure)
+
+
+@app.post("/api/chair/stretch")
+def chair_stretch(body: ChairRequest) -> dict[str, Any]:
+    return chair.stretch(config, source=body.source)
+
+
+# -- achievements -------------------------------------------------------
+@app.get("/api/achievements/today")
+def achievements_today() -> dict[str, Any]:
+    return gitstats.achievements(config)
+
+
+# -- config -------------------------------------------------------------
+@app.get("/api/config")
+def get_config() -> dict[str, Any]:
+    return config.all()
+
+
+@app.put("/api/config")
+def put_config(patch: dict[str, Any]) -> dict[str, Any]:
+    return config.update(patch)

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Lumia 今日成就墙</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #1c1b22; color: #e8e5ef; padding: 20px 24px; }
+    h1 { font-size: 20px; color: #f5b7ad; margin: 0 0 4px; }
+    .sub { opacity: 0.6; font-size: 13px; margin-bottom: 18px; }
+    h2 { font-size: 15px; margin: 22px 0 8px; color: #cfc9dc; }
+    .repo { font-size: 13px; color: #9a95a8; margin: 14px 0 6px; }
+    .commit { padding: 8px 12px; background: #26242e; border-radius: 8px; margin: 6px 0;
+      display: flex; gap: 10px; align-items: baseline; }
+    .hash { font-family: Consolas, monospace; color: #e0887a; font-size: 12px; }
+    .subject { flex: 1; }
+    .time { font-size: 11px; opacity: 0.5; }
+    .idea { padding: 8px 12px; background: #241f26; border-radius: 8px; margin: 6px 0; font-size: 13px; }
+    .empty { opacity: 0.5; font-style: italic; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>今日成就墙</h1>
+  <div class="sub" id="sub">加载中…</div>
+
+  <h2>Commits</h2>
+  <div id="commits"><div class="empty">加载中…</div></div>
+
+  <h2>今日灵感</h2>
+  <div id="ideas"><div class="empty">加载中…</div></div>
+
+  <script>
+    function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+    async function load() {
+      try {
+        const ach = await window.lumia.fetchJSON('/api/achievements/today');
+        document.getElementById('sub').textContent =
+          `${ach.date} · 共 ${ach.total_commits} 次提交`;
+        const box = document.getElementById('commits');
+        box.innerHTML = '';
+        if (!ach.repos || ach.repos.length === 0) {
+          box.innerHTML = '<div class="empty">未配置 git 仓库（config.json -> git.repos）。</div>';
+        }
+        for (const repo of ach.repos || []) {
+          const head = document.createElement('div');
+          head.className = 'repo';
+          head.textContent = repo.name + (repo.error ? ` (${repo.error})` : '');
+          box.appendChild(head);
+          if (!repo.commits || repo.commits.length === 0) {
+            const e = document.createElement('div');
+            e.className = 'empty';
+            e.textContent = '今天还没有提交。';
+            box.appendChild(e);
+            continue;
+          }
+          for (const c of repo.commits) {
+            const row = document.createElement('div');
+            row.className = 'commit';
+            row.innerHTML = `<span class="hash">${esc(c.hash)}</span>` +
+              `<span class="subject">${esc(c.subject)}</span>` +
+              `<span class="time">${esc((c.time || '').slice(11, 16))}</span>`;
+            box.appendChild(row);
+          }
+        }
+      } catch (e) {
+        document.getElementById('sub').textContent = '无法连接后端 (:8787)。';
+      }
+
+      try {
+        const data = await window.lumia.fetchJSON('/api/ideas?limit=50');
+        const today = new Date().toISOString().slice(0, 10);
+        const box = document.getElementById('ideas');
+        box.innerHTML = '';
+        const todays = (data.ideas || []).filter((i) => (i.ts || '').slice(0, 10) === today);
+        if (todays.length === 0) {
+          box.innerHTML = '<div class="empty">今天还没有捕捉到灵感。</div>';
+        }
+        for (const idea of todays) {
+          const row = document.createElement('div');
+          row.className = 'idea';
+          const label = idea.kind === 'audio' ? '🎙 语音灵感' : esc(idea.text);
+          row.innerHTML = `${label} <span class="time">· ${esc((idea.ts || '').slice(11, 16))}</span>`;
+          box.appendChild(row);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    load();
+  </script>
+</body>
+</html>

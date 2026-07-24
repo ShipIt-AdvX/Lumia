@@ -1,0 +1,14 @@
+{
+  "name": "lumia-desktop",
+  "version": "0.1.0",
+  "description": "Lumia tray app: non-focus reminder popups + settings entry.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Lumia",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

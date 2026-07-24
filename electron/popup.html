@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
+    .card {
+      box-sizing: border-box; height: calc(100% - 16px); margin: 8px;
+      background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 14px;
+      padding: 14px 16px; display: flex; flex-direction: column;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45); border: 1px solid rgba(224,136,122,0.35);
+    }
+    .title { font-size: 14px; font-weight: 600; color: #f5b7ad; }
+    .msg { font-size: 13px; line-height: 1.45; margin-top: 6px; flex: 1; color: #d8d4e0; }
+    .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    button { font: inherit; font-size: 12px; border: none; border-radius: 8px; padding: 6px 12px;
+      background: #2f2d38; color: #e8e5ef; cursor: pointer; }
+    button:hover { background: #3b3947; }
+    button.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
+    button.primary:hover { background: #ec9a8d; }
+    .close { position: absolute; top: 12px; right: 16px; font-size: 14px; color: #8a8697; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="close" id="close">✕</div>
+    <div class="title" id="title">Lumia</div>
+    <div class="msg" id="msg"></div>
+    <div class="row" id="actions"></div>
+  </div>
+  <script>
+    const titleEl = document.getElementById('title');
+    const msgEl = document.getElementById('msg');
+    const actionsEl = document.getElementById('actions');
+    let dismissTimer = null;
+
+    document.getElementById('close').addEventListener('click', () => window.lumia.dismiss());
+
+    window.lumia.onEvent((event) => {
+      titleEl.textContent = event.title || 'Lumia';
+      msgEl.textContent = event.message || '';
+      actionsEl.innerHTML = '';
+      const acts = event.actions || [];
+      acts.forEach((a, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = a.label;
+        if (idx === 0) btn.className = 'primary';
+        btn.addEventListener('click', () => window.lumia.action({ id: a.id }));
+        actionsEl.appendChild(btn);
+      });
+      const dismiss = document.createElement('button');
+      dismiss.textContent = '知道了';
+      dismiss.addEventListener('click', () => window.lumia.dismiss());
+      actionsEl.appendChild(dismiss);
+
+      if (dismissTimer) clearTimeout(dismissTimer);
+      dismissTimer = setTimeout(() => window.lumia.dismiss(), 12000);
+    });
+  </script>
+</body>
+</html>

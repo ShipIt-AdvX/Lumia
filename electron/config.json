@@ -1,0 +1,17 @@
+{
+  "backend": {
+    "baseUrl": "http://127.0.0.1:8787",
+    "spawn": false,
+    "command": "python",
+    "args": ["run.py"],
+    "cwd": "../backend"
+  },
+  "popup": {
+    "width": 340,
+    "height": 150,
+    "marginRight": 20,
+    "marginBottom": 20,
+    "autoDismissMs": 12000
+  },
+  "pollIntervalMs": 2000
+}
