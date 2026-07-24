@@ -21,7 +21,7 @@
     "titleHeight": 40,
     "autoRetractMs": 10000,
     "animMs": 260,
-    "fps": 120
+    "fps": 60
   },
   "pollIntervalMs": 2000
 }

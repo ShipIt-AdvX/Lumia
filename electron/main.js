@@ -184,6 +184,7 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
       additionalArguments: ['--lumia-base=' + BASE, '--lumia-title=' + title],
     },
   });
