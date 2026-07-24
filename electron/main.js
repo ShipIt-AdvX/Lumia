@@ -210,7 +210,7 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   win.once('ready-to-show', () => {
     win.setBounds({ x: wa.x + wa.width, y: slotY(0), width, height });
     win.showInactive();
-    collapseSiblings(win);
+    if (!st.noRetract) collapseSiblings(win);
     reflow(true);
     win.moveTop();
     scheduleRetract(win);
