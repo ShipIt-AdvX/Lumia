@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('lumia', {
   win: {
     close: () => ipcRenderer.send('win-close'),
     toggleFullscreen: () => ipcRenderer.send('win-toggle-fullscreen'),
+    collapseToggle: () => ipcRenderer.send('float-collapse-toggle'),
+    setHover: (hovering) => ipcRenderer.send('float-hover', hovering),
+    onRetractedChanged: (cb) =>
+      ipcRenderer.on('retracted-changed', (_e, retracted) => cb(retracted)),
     onFullscreenChanged: (cb) =>
       ipcRenderer.on('fullscreen-changed', (_e, isFull) => cb(isFull)),
   },

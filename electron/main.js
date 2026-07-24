@@ -53,9 +53,16 @@ function targetX(width) {
   const wa = workArea();
   return wa.x + wa.width - FLOAT.marginRight - width;
 }
+function retractedX() {
+  const wa = workArea();
+  return wa.x + wa.width - FLOAT.handleWidth;
+}
 const TITLE_H = FLOAT.titleHeight || 40;
 function effHeight(st) {
   return st.collapsed ? TITLE_H : st.height;
+}
+function floatX(st) {
+  return st.retracted ? retractedX() : targetX(st.width);
 }
 function slotY(index) {
   const wa = workArea();
@@ -92,13 +99,11 @@ function reflow(animate = true) {
     const st = floatState.get(win.id);
     if (!st || st.isFullscreen || st.closing) return;
     st.slotYCache = slotY(i);
-    animateBounds(win, { x: targetX(st.width), y: st.slotYCache, width: st.width, height: effHeight(st) }, animate ? FLOAT.animMs : 0);
+    animateBounds(win, { x: floatX(st), y: st.slotYCache, width: st.width, height: effHeight(st) }, animate ? FLOAT.animMs : 0);
   });
 }
 
 function collapseSiblings(win) {
-  const st = floatState.get(win.id);
-  if (!st || st.noRetract) return false;
   let changed = false;
   floats.forEach((w) => {
     const s = floatState.get(w.id);
@@ -109,11 +114,32 @@ function collapseSiblings(win) {
   return changed;
 }
 
+function setRetracted(win, retracted) {
+  const st = floatState.get(win.id);
+  if (!st || st.isFullscreen || st.closing || st.retracted === retracted) return;
+  st.retracted = retracted;
+  animateBounds(win, { x: floatX(st), y: st.slotYCache, width: st.width, height: effHeight(st) }, FLOAT.animMs);
+  win.webContents.send('retracted-changed', retracted);
+}
+
+function scheduleRetract(win) {
+  const st = floatState.get(win.id);
+  if (!st || st.noRetract) return;
+  if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
+  if (st.hovering || st.isFullscreen || st.closing) return;
+  st.retractTimer = setTimeout(() => {
+    st.retractTimer = null;
+    setRetracted(win, true);
+  }, FLOAT.autoRetractMs);
+}
+
 function activateFloat(win) {
   const st = floatState.get(win.id);
   if (!st || st.isFullscreen || st.closing) return;
   win.moveTop();
-  if (collapseSiblings(win)) reflow(true);
+  setRetracted(win, false);
+  scheduleRetract(win);
+  if (!st.noRetract && collapseSiblings(win)) reflow(true);
 }
 
 function toggleFullscreen(win) {
@@ -122,6 +148,8 @@ function toggleFullscreen(win) {
   const wa = workArea();
   if (!st.isFullscreen) {
     st.isFullscreen = true;
+    if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
+    if (st.retracted) { st.retracted = false; win.webContents.send('retracted-changed', false); }
     animateBounds(win, { x: wa.x, y: wa.y, width: wa.width, height: wa.height }, FLOAT.animMs);
     win.moveTop();
     win.webContents.send('fullscreen-changed', true);
@@ -131,6 +159,7 @@ function toggleFullscreen(win) {
     win.webContents.send('fullscreen-changed', false);
     collapseSiblings(win);
     reflow(true);
+    scheduleRetract(win);
   }
 }
 
@@ -161,13 +190,13 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   const st = {
     win, key, width, height,
     isFullscreen: false, collapsed: false,
+    retracted: false, hovering: false, retractTimer: null,
     animTimer: null, slotYCache: 0,
     noRetract: !!noRetract,
   };
   floatState.set(win.id, st);
   floats.unshift(win);
   win.setAlwaysOnTop(true, 'floating');
-  win.on('focus', () => activateFloat(win));
   win.loadFile(path.join(__dirname, file));
 
   if (event) {
@@ -183,12 +212,14 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
     collapseSiblings(win);
     reflow(true);
     win.moveTop();
+    scheduleRetract(win);
   });
 
   win.on('closed', () => {
     const idx = floats.indexOf(win);
     if (idx >= 0) floats.splice(idx, 1);
     if (st.animTimer) clearInterval(st.animTimer);
+    if (st.retractTimer) clearTimeout(st.retractTimer);
     floatState.delete(win.id);
     reflow(true);
   });
@@ -200,6 +231,7 @@ function closeFloat(win) {
   if (!st || win.isDestroyed()) { if (win && !win.isDestroyed()) win.close(); return; }
   if (st.closing) return;
   st.closing = true;
+  if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
   const wa = workArea();
   const b = win.getBounds();
   animateBounds(win, { x: wa.x + wa.width, y: b.y, width: b.width, height: b.height }, FLOAT.animMs, () => {
@@ -259,6 +291,31 @@ ipcMain.on('dev-open', (_e, key) => {
   else if (key === 'achievements') openAchievements();
 });
 
+ipcMain.on('float-hover', (e, hovering) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w || !floatState.has(w.id)) return;
+  const st = floatState.get(w.id);
+  st.hovering = !!hovering;
+  if (hovering) {
+    if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
+    setRetracted(w, false);
+  } else {
+    scheduleRetract(w);
+  }
+});
+ipcMain.on('float-collapse-toggle', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender);
+  if (!w || !floatState.has(w.id)) return;
+  const st = floatState.get(w.id);
+  if (st.noRetract || st.isFullscreen || st.closing) return;
+  if (st.collapsed) {
+    w.moveTop();
+    collapseSiblings(w);
+  } else {
+    st.collapsed = true;
+  }
+  reflow(true);
+});
 ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (floatState.has(w.id)) closeFloat(w); else w.close(); });
 ipcMain.on('win-toggle-fullscreen', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
