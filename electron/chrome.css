@@ -1,13 +1,9 @@
-/* Shared frameless-window chrome for Lumia float windows
-   (settings / achievements). Provides the custom title bar, rounded
-   window shell, base dark theme and common form controls. */
-
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   height: 100%;
-  background: transparent;               /* transparent frame for animated float */
+  background: transparent;
   font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
   color: #e8e5ef;
   -webkit-user-select: none;
@@ -15,7 +11,6 @@ html, body {
   cursor: default;
 }
 
-/* --- window shell (rounded, clipped) --- */
 .lumia-window {
   height: 100vh;
   display: flex;
@@ -32,7 +27,6 @@ body.is-fullscreen .lumia-window {
   box-shadow: none;
 }
 
-/* --- title bar --- */
 .lumia-titlebar {
   flex: 0 0 40px;
   display: flex;
@@ -41,7 +35,7 @@ body.is-fullscreen .lumia-window {
   padding: 0 8px 0 10px;
   background: rgba(16, 15, 20, 0.55);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  -webkit-app-region: drag;              /* whole bar draggable */
+  -webkit-app-region: drag;
 }
 .lumia-titlebar .tb-btn { -webkit-app-region: no-drag; }
 
@@ -78,7 +72,6 @@ body.is-fullscreen .lumia-window {
 }
 .tb-close:hover { background: #e81123; color: #fff; }
 
-/* --- retract handle (visible sliver when the float is retracted) --- */
 .lumia-handle {
   position: fixed;
   top: 0;
@@ -94,7 +87,6 @@ body.is-retracted .lumia-handle { opacity: 0.9; }
 
 .lumia-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* --- common form controls --- */
 input[type="text"],
 input[type="number"],
 input[type="time"],
@@ -127,3 +119,14 @@ button.btn {
 button.btn:hover { background: #3b3947; }
 button.btn.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
 button.btn.primary:hover { background: #ec9a8d; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(224, 136, 122, 0.32);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(224, 136, 122, 0.6); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }

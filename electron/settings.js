@@ -1,12 +1,10 @@
 'use strict';
-/* 设置窗口: 加载 /api/config, 把改动存为 localStorage 草稿,
-   只有等可撤销的 15 秒倒计时走完才 PUT. */
 (function () {
   const DRAFT_KEY = 'lumia.settings.draft';
   const COUNTDOWN_SECONDS = 15;
 
-  let baseline = {};   // 服务端最近状态
-  let working = {};    // 基线 + 本地改动
+  let baseline = {};
+  let working = {};
   let dirty = false;
   let countdownTimer = null;
 
@@ -105,7 +103,6 @@
   function bindListEditors() {
     document.querySelectorAll('[data-list]').forEach((container) => {
       const path = container.dataset.list;
-      // 添加行是同一 field 内相邻的 .tag-add
       const field = container.closest('.field');
       const addRow = field ? field.querySelector('.tag-add') : null;
       if (!addRow) return;
@@ -202,9 +199,8 @@
     barFill.style.transition = 'none';
     barFill.style.width = '100%';
     overlay.classList.add('show');
-    // 下一帧再改宽度, transition 才会生效
     requestAnimationFrame(() => {
-      barFill.style.transition = 'width 1s linear';
+      barFill.style.transition = 'width ' + COUNTDOWN_SECONDS + 's linear';
       barFill.style.width = '0%';
     });
     countdownTimer = setInterval(() => {

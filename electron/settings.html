@@ -58,8 +58,11 @@
     .overlay-title { font-size: 15px; color: #f5b7ad; font-weight: 600; }
     .overlay-count { font-size: 13px; color: #b9b4c6; margin: 10px 0 14px; }
     .overlay-count b { font-size: 22px; color: #fff; }
-    .overlay-bar { height: 4px; background: #14131a; border-radius: 2px; overflow: hidden; margin-top: 14px; }
-    .overlay-bar > div { height: 100%; width: 100%; background: #e0887a; transition: width 1s linear; }
+    .overlay-bar { height: 6px; background: #14131a; border-radius: 3px; overflow: hidden; margin-top: 16px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
+    .overlay-bar > div { height: 100%; width: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #e0887a, #f5b7ad);
+      box-shadow: 0 0 8px rgba(224,136,122,0.55); transition: width 15s linear; }
   </style>
 </head>
 <body>
@@ -141,7 +144,6 @@
     </div>
   </div>
 
-  <!-- save countdown overlay -->
   <div class="lumia-overlay" id="saveOverlay">
     <div class="overlay-card">
       <div class="overlay-title">更改即将生效</div>

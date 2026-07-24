@@ -97,7 +97,7 @@
           row.innerHTML = `${label} <span class="time">· ${esc((idea.ts || '').slice(11, 16))}</span>`;
           box.appendChild(row);
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     }
     load();
   </script>

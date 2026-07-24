@@ -1,5 +1,4 @@
 'use strict';
-// Lumia 桌面外壳: 托盘程序、不抢焦点的提醒弹窗、右侧浮窗.
 const { app, Tray, Menu, BrowserWindow, ipcMain, screen, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -8,6 +7,7 @@ const { spawn } = require('child_process');
 const CFG = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf-8'));
 const BASE = CFG.backend.baseUrl;
 const FLOAT = CFG.float;
+const FRAME_MS = Math.max(1, Math.round(1000 / (FLOAT.fps || 120)));
 
 let tray = null;
 let popupWin = null;
@@ -16,11 +16,9 @@ let lastEventId = 0;
 const popupQueue = [];
 let popupBusy = false;
 
-// 浮窗记账: floats[0] 是最新、最上层的窗口
 const floats = [];
-const floatState = new Map(); // win.id -> 状态
+const floatState = new Map();
 
-// 在内存里画托盘位图, 免得依赖磁盘上的图标文件
 function makeTrayIcon() {
   const size = 16;
   const buf = Buffer.alloc(size * size * 4);
@@ -29,7 +27,7 @@ function makeTrayIcon() {
     for (let x = 0; x < size; x++) {
       const i = (y * size + x) * 4;
       const inside = (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
-      buf[i] = inside ? 0xE0 : 0;      // BGRA 通道顺序
+      buf[i] = inside ? 0xE0 : 0;
       buf[i + 1] = inside ? 0x88 : 0;
       buf[i + 2] = inside ? 0x7A : 0;
       buf[i + 3] = inside ? 0xFF : 0;
@@ -70,31 +68,31 @@ function slotY(index) {
   return y;
 }
 
-function animateBounds(win, to, ms) {
+function animateBounds(win, to, ms, done) {
   const st = floatState.get(win.id);
   if (!st || win.isDestroyed()) return;
   if (st.animTimer) { clearInterval(st.animTimer); st.animTimer = null; }
   const from = win.getBounds();
-  if (ms <= 0) { win.setBounds(to); return; }
+  if (ms <= 0) { win.setBounds(to); if (done) done(); return; }
   const start = Date.now();
   st.animTimer = setInterval(() => {
     if (win.isDestroyed()) { clearInterval(st.animTimer); return; }
     const t = Math.min(1, (Date.now() - start) / ms);
-    const e = 1 - Math.pow(1 - t, 3); // easeOutCubic 缓动
+    const e = 1 - Math.pow(1 - t, 3);
     win.setBounds({
       x: Math.round(from.x + (to.x - from.x) * e),
       y: Math.round(from.y + (to.y - from.y) * e),
       width: Math.round(from.width + (to.width - from.width) * e),
       height: Math.round(from.height + (to.height - from.height) * e),
     });
-    if (t >= 1) { clearInterval(st.animTimer); st.animTimer = null; }
-  }, 16);
+    if (t >= 1) { clearInterval(st.animTimer); st.animTimer = null; if (done) done(); }
+  }, FRAME_MS);
 }
 
 function reflow(animate = true) {
   floats.forEach((win, i) => {
     const st = floatState.get(win.id);
-    if (!st || st.isFullscreen) return;
+    if (!st || st.isFullscreen || st.closing) return;
     st.slotYCache = slotY(i);
     const x = st.retracted ? retractedX() : targetX(st.width);
     animateBounds(win, { x, y: st.slotYCache, width: st.width, height: st.height }, animate ? FLOAT.animMs : 0);
@@ -103,7 +101,7 @@ function reflow(animate = true) {
 
 function scheduleRetract(win) {
   const st = floatState.get(win.id);
-  if (!st || st.isFullscreen) return;
+  if (!st || st.isFullscreen || st.closing) return;
   if (st.retractTimer) clearTimeout(st.retractTimer);
   st.retractTimer = setTimeout(() => {
     if (st.hovering || st.isFullscreen || win.isDestroyed()) return;
@@ -115,7 +113,7 @@ function scheduleRetract(win) {
 
 function setHover(win, hovering) {
   const st = floatState.get(win.id);
-  if (!st) return;
+  if (!st || st.closing) return;
   st.hovering = hovering;
   if (st.isFullscreen) return;
   if (hovering) {
@@ -154,7 +152,7 @@ function toggleFullscreen(win) {
 
 function createFloat({ key, file, width, height, title }) {
   const existing = floats.find((w) => floatState.get(w.id).key === key);
-  if (existing) { // 单实例: 已存在就召回并置顶, 不重复创建
+  if (existing) {
     const st = floatState.get(existing.id);
     setHover(existing, true);
     existing.moveTop();
@@ -188,12 +186,11 @@ function createFloat({ key, file, width, height, title }) {
   win.setAlwaysOnTop(true, 'floating');
   win.loadFile(path.join(__dirname, file));
 
-  // 从屏幕右侧外、顶部槽位开始
   const wa = workArea();
   win.once('ready-to-show', () => {
     win.setBounds({ x: wa.x + wa.width, y: slotY(0), width, height });
     win.showInactive();
-    reflow(true);       // 新窗滑入, 旧窗下移
+    reflow(true);
     win.moveTop();
     scheduleRetract(win);
   });
@@ -207,6 +204,19 @@ function createFloat({ key, file, width, height, title }) {
     reflow(true);
   });
   return win;
+}
+
+function closeFloat(win) {
+  const st = floatState.get(win.id);
+  if (!st || win.isDestroyed()) { if (win && !win.isDestroyed()) win.close(); return; }
+  if (st.closing) return;
+  st.closing = true;
+  if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
+  const wa = workArea();
+  const b = win.getBounds();
+  animateBounds(win, { x: wa.x + wa.width, y: b.y, width: b.width, height: b.height }, FLOAT.animMs, () => {
+    if (!win.isDestroyed()) win.close();
+  });
 }
 
 function openSettings() {
@@ -285,7 +295,7 @@ ipcMain.on('popup-action', async (_evt, payload) => {
 });
 ipcMain.on('popup-dismiss', dismissPopup);
 
-ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.close(); });
+ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (floatState.has(w.id)) closeFloat(w); else w.close(); });
 ipcMain.on('win-toggle-fullscreen', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   if (w && floatState.has(w.id)) toggleFullscreen(w);
@@ -337,5 +347,5 @@ app.whenReady().then(() => {
   initLastEventId().then(() => setInterval(pollEvents, CFG.pollIntervalMs));
 });
 
-app.on('window-all-closed', () => { /* 托盘程序: 保持存活 */ });
+app.on('window-all-closed', () => {});
 app.on('before-quit', () => { if (backendProc && !backendProc.killed) { try { backendProc.kill(); } catch (_) {} } });

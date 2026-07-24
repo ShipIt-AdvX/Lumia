@@ -1,5 +1,4 @@
 'use strict';
-/* 预加载桥接: popup / settings / achievements 三个窗口共用. */
 const { contextBridge, ipcRenderer } = require('electron');
 
 function readArg(prefix) {

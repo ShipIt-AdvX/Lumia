@@ -19,7 +19,8 @@
     "gap": 12,
     "handleWidth": 8,
     "autoRetractMs": 10000,
-    "animMs": 260
+    "animMs": 260,
+    "fps": 120
   },
   "pollIntervalMs": 2000
 }
