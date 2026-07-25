@@ -51,7 +51,9 @@
   },
   "git": {
     "repos": [
-      "C:\\Users\\Administrator\\Desktop\\projects\\Lumia"
-    ]
+      "C:\\Users\\Administrator\\Desktop\\projects\\Lumia",
+      "C:\\Users\\Administrator\\Desktop\\projects\\Lumia_works"
+    ],
+    "github_username": "AerMini2024"
   }
 }

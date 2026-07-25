@@ -109,6 +109,11 @@
             <div class="field col"><label>扫描的本地仓库</label><div class="tags" data-list="git.repos" data-vertical></div>
               <div class="tag-add"><input type="text" placeholder="仓库绝对路径"><button class="btn" data-add>添加</button><button class="btn" id="browseRepo">浏览…</button></div></div>
             <div class="hintline" style="margin-left:0">时长耗尽后，成就墙会列出这些仓库当天的 commits。</div>
+            <div class="field"><label>Client ID</label><input type="text" style="width:180px" placeholder="GitHub OAuth App 的 Client ID" data-path="git.github_client_id"></div>
+            <div class="field"><label></label><button class="btn" id="ghAuth">网页授权 GitHub</button><span class="unit" id="ghAuthResult"></span></div>
+            <div class="field"><label>GitHub 用户名</label><input type="text" style="width:180px" placeholder="授权后自动填入" data-path="git.github_username"></div>
+            <div class="field"><label>GitHub 令牌</label><input type="password" style="width:180px" placeholder="授权后自动填入，也可手填 PAT" data-path="git.github_token"></div>
+            <div class="hintline" style="margin-left:0">推荐网页授权：填入 Client ID 后点按钮，浏览器里输入一次性代码即可，用户名与令牌自动写入。绑定后从 GitHub 拉取当天全部 commits，与本地仓库去重合并。</div>
           </section>
 
           <section class="panel" data-panel="server">

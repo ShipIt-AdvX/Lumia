@@ -19,8 +19,14 @@
     .time { font-size: 11px; opacity: 0.5; }
     .commit-detail { display: none; padding: 0 12px 10px; }
     .commit.open .commit-detail { display: block; }
-    .commit-body { font-size: 12px; opacity: 0.75; white-space: pre-wrap; word-break: break-all;
-      border-top: 1px solid #34313e; padding-top: 8px; }
+    .commit-author { display: flex; align-items: center; gap: 8px; font-size: 12px;
+      border-top: 1px solid #34313e; padding-top: 8px; margin-bottom: 8px; }
+    .avatar { width: 24px; height: 24px; border-radius: 50%; flex: none; }
+    .avatar-fallback { width: 24px; height: 24px; border-radius: 50%; flex: none; background: #3a3646;
+      color: #cfc9dc; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+    .author-link { cursor: pointer; }
+    .author-link:hover .author-name { text-decoration: underline; color: #8ab4f8; }
+    .commit-body { font-size: 12px; opacity: 0.75; white-space: pre-wrap; word-break: break-all; }
     .commit-link { display: inline-block; margin-top: 8px; font-size: 12px; color: #8ab4f8;
       text-decoration: underline; cursor: pointer; }
     .idea { padding: 8px 12px; background: #241f26; border-radius: 8px; margin: 6px 0; font-size: 13px; }
@@ -69,8 +75,15 @@
             box.appendChild(err);
           }
         }
-        if (!ach.repos || ach.repos.length === 0) {
-          box.innerHTML = '<div class="empty">未配置 git 仓库（设置 → 成就墙）。</div>';
+        if (ach.github && ach.github.error) {
+          const err = document.createElement('div');
+          err.className = 'repo-err';
+          err.textContent = `GitHub(${ach.github.username}): ${ach.github.error}`;
+          box.appendChild(err);
+        }
+        const hasSource = (ach.repos && ach.repos.length > 0) || (ach.github && ach.github.username);
+        if (!hasSource) {
+          box.innerHTML = '<div class="empty">未配置 git 仓库或 GitHub 账号（设置 → 成就墙）。</div>';
         } else if (!ach.commits || ach.commits.length === 0) {
           const e = document.createElement('div');
           e.className = 'empty';
@@ -80,7 +93,15 @@
         for (const c of ach.commits || []) {
           const item = document.createElement('div');
           item.className = 'commit';
-          const detail = (c.body ? `<div class="commit-body">${esc(c.body)}</div>` : '<div class="commit-body">没有更多描述。</div>') +
+          const avatar = c.avatar_url
+            ? `<img class="avatar" src="${esc(c.avatar_url)}" onerror="this.style.display='none'">`
+            : `<span class="avatar-fallback">${esc((c.author || '?').slice(0, 1).toUpperCase())}</span>`;
+          const authorInner = avatar + `<span class="author-name">${esc(c.author)}</span>`;
+          const authorRow = c.author_url
+            ? `<div class="commit-author author-link" data-url="${esc(c.author_url)}">${authorInner} ↗</div>`
+            : `<div class="commit-author">${authorInner}</div>`;
+          const detail = authorRow +
+            (c.body ? `<div class="commit-body">${esc(c.body)}</div>` : '<div class="commit-body">没有更多描述。</div>') +
             (c.url ? `<span class="commit-link" data-url="${esc(c.url)}">在浏览器中打开此 commit ↗</span>` : '');
           item.innerHTML = `<div class="commit-row">` +
             `<span class="repo-tag">${esc(c.repo)}</span>` +
@@ -89,7 +110,7 @@
             `<span class="time">${esc((c.time || '').slice(11, 16))}</span>` +
             `</div><div class="commit-detail">${detail}</div>`;
           item.addEventListener('click', (ev) => {
-            const link = ev.target.closest('.commit-link');
+            const link = ev.target.closest('[data-url]');
             if (link) { window.lumia.openExternal(link.dataset.url); return; }
             item.classList.toggle('open');
           });

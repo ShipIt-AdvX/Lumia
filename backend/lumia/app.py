@@ -40,6 +40,14 @@ class DevUsed(BaseModel):
     minutes: float
 
 
+class DeviceCode(BaseModel):
+    device_code: str
+
+
+class AuthStart(BaseModel):
+    client_id: str = ""
+
+
 async def _coding_loop() -> None:
     while True:
         try:
@@ -155,6 +163,21 @@ def chair_stretch(body: ChairRequest) -> dict[str, Any]:
 @app.get("/api/achievements/today")
 def achievements_today() -> dict[str, Any]:
     return gitstats.achievements(config)
+
+
+@app.post("/api/github/auth/start")
+def github_auth_start(body: AuthStart) -> dict[str, Any]:
+    client_id = body.client_id.strip()
+    if client_id:
+        config.update({"git": {"github_client_id": client_id}})
+    else:
+        client_id = (config.get("git", "github_client_id", default="") or "").strip()
+    return gitstats.github_device_start(client_id)
+
+
+@app.post("/api/github/auth/poll")
+def github_auth_poll(body: DeviceCode) -> dict[str, Any]:
+    return gitstats.github_device_poll(config, body.device_code)
 
 
 @app.get("/api/config")

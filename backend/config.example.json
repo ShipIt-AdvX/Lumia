@@ -55,6 +55,9 @@
     "relay_url": "http://192.168.1.50:8790/stretch"
   },
   "git": {
-    "repos": []
+    "repos": [],
+    "github_client_id": "",
+    "github_username": "",
+    "github_token": ""
   }
 }

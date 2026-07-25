@@ -164,6 +164,60 @@
     });
   }
 
+  function bindGithubAuth() {
+    const btn = document.getElementById('ghAuth');
+    const result = document.getElementById('ghAuthResult');
+    if (!btn) return;
+    let polling = null;
+    btn.addEventListener('click', async () => {
+      if (polling) return;
+      const clientId = (getPath(working, 'git.github_client_id') || '').trim();
+      result.textContent = '正在向 GitHub 申请授权…';
+      let start;
+      try {
+        start = await window.lumia.postJSON('/api/github/auth/start', { client_id: clientId });
+      } catch (err) {
+        result.textContent = '失败：' + (err && err.message ? err.message : err);
+        return;
+      }
+      if (!start.ok) { result.textContent = start.reason || '授权启动失败'; return; }
+      try { await navigator.clipboard.writeText(start.user_code); } catch (_) {}
+      window.lumia.openExternal(start.verification_uri);
+      result.textContent = '在打开的网页输入代码 ' + start.user_code + '（已复制），等待授权…';
+      const deadline = Date.now() + (start.expires_in || 900) * 1000;
+      let interval = Math.max(5, start.interval || 5) * 1000;
+      const step = async () => {
+        if (Date.now() > deadline) { polling = null; result.textContent = '授权超时，请重试。'; return; }
+        let r;
+        try {
+          r = await window.lumia.postJSON('/api/github/auth/poll', { device_code: start.device_code });
+        } catch (_) { polling = setTimeout(step, interval); return; }
+        if (r.ok) {
+          polling = null;
+          setPath(working, 'git.github_username', r.username);
+          setPath(baseline, 'git.github_username', r.username);
+          try {
+            const cfg = await window.lumia.fetchJSON('/api/config');
+            const token = getPath(cfg, 'git.github_token') || '';
+            setPath(working, 'git.github_token', token);
+            setPath(baseline, 'git.github_token', token);
+          } catch (_) {}
+          renderFields();
+          result.textContent = '已授权为 ' + r.username + ' ✓';
+          return;
+        }
+        if (r.pending) {
+          if (r.slow_down) interval += 5000;
+          polling = setTimeout(step, interval);
+          return;
+        }
+        polling = null;
+        result.textContent = r.reason || '授权失败';
+      };
+      polling = setTimeout(step, interval);
+    });
+  }
+
   function bindNav() {
     const items = document.querySelectorAll('.nav-item');
     items.forEach((item) => {
@@ -247,6 +301,7 @@
     bindListEditors();
     bindChairTest();
     bindBrowseRepo();
+    bindGithubAuth();
     bindSaveReset();
 
     try {
