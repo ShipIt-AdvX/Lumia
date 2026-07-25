@@ -144,6 +144,8 @@ class CodingTracker:
         day = self._db.get_day(today.isoformat())
         if day["delay_used"]:
             return {"ok": False, "reason": "今天已经用过延时了。"}
+        if int(day["used_seconds"]) < self.allowed_seconds(today):
+            return {"ok": False, "reason": "还没到今日开发上限"}
         minutes = self._delay_minutes()
         ends_at = (datetime.now() + timedelta(minutes=minutes)).isoformat(
             timespec="seconds"
