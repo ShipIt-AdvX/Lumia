@@ -9,12 +9,20 @@
     h1 { font-size: 20px; color: #f5b7ad; margin: 0 0 4px; }
     .sub { opacity: 0.6; font-size: 13px; margin-bottom: 18px; }
     h2 { font-size: 15px; margin: 22px 0 8px; color: #cfc9dc; }
-    .repo { font-size: 13px; color: #9a95a8; margin: 14px 0 6px; }
-    .commit { padding: 8px 12px; background: #26242e; border-radius: 8px; margin: 6px 0;
-      display: flex; gap: 10px; align-items: baseline; }
+    .repo-err { font-size: 12px; color: #b0736a; margin: 4px 0; }
+    .commit { background: #26242e; border-radius: 8px; margin: 6px 0; cursor: pointer; }
+    .commit-row { padding: 8px 12px; display: flex; gap: 10px; align-items: baseline; }
+    .repo-tag { font-size: 11px; color: #9a95a8; background: #2f2c3a; border-radius: 4px;
+      padding: 1px 6px; white-space: nowrap; }
     .hash { font-family: Consolas, monospace; color: #e0887a; font-size: 12px; }
     .subject { flex: 1; }
     .time { font-size: 11px; opacity: 0.5; }
+    .commit-detail { display: none; padding: 0 12px 10px; }
+    .commit.open .commit-detail { display: block; }
+    .commit-body { font-size: 12px; opacity: 0.75; white-space: pre-wrap; word-break: break-all;
+      border-top: 1px solid #34313e; padding-top: 8px; }
+    .commit-link { display: inline-block; margin-top: 8px; font-size: 12px; color: #8ab4f8;
+      text-decoration: underline; cursor: pointer; }
     .idea { padding: 8px 12px; background: #241f26; border-radius: 8px; margin: 6px 0; font-size: 13px; }
     .empty { opacity: 0.5; font-style: italic; font-size: 13px; }
   </style>
@@ -53,29 +61,39 @@
           `${ach.date} · 共 ${ach.total_commits} 次提交`;
         const box = document.getElementById('commits');
         box.innerHTML = '';
+        for (const r of ach.repos || []) {
+          if (r.error) {
+            const err = document.createElement('div');
+            err.className = 'repo-err';
+            err.textContent = `${r.name}: ${r.error}`;
+            box.appendChild(err);
+          }
+        }
         if (!ach.repos || ach.repos.length === 0) {
           box.innerHTML = '<div class="empty">未配置 git 仓库（设置 → 成就墙）。</div>';
+        } else if (!ach.commits || ach.commits.length === 0) {
+          const e = document.createElement('div');
+          e.className = 'empty';
+          e.textContent = '今天还没有提交。';
+          box.appendChild(e);
         }
-        for (const repo of ach.repos || []) {
-          const head = document.createElement('div');
-          head.className = 'repo';
-          head.textContent = repo.name + (repo.error ? ` (${repo.error})` : '');
-          box.appendChild(head);
-          if (!repo.commits || repo.commits.length === 0) {
-            const e = document.createElement('div');
-            e.className = 'empty';
-            e.textContent = '今天还没有提交。';
-            box.appendChild(e);
-            continue;
-          }
-          for (const c of repo.commits) {
-            const row = document.createElement('div');
-            row.className = 'commit';
-            row.innerHTML = `<span class="hash">${esc(c.hash)}</span>` +
-              `<span class="subject">${esc(c.subject)}</span>` +
-              `<span class="time">${esc((c.time || '').slice(11, 16))}</span>`;
-            box.appendChild(row);
-          }
+        for (const c of ach.commits || []) {
+          const item = document.createElement('div');
+          item.className = 'commit';
+          const detail = (c.body ? `<div class="commit-body">${esc(c.body)}</div>` : '<div class="commit-body">没有更多描述。</div>') +
+            (c.url ? `<span class="commit-link" data-url="${esc(c.url)}">在浏览器中打开此 commit ↗</span>` : '');
+          item.innerHTML = `<div class="commit-row">` +
+            `<span class="repo-tag">${esc(c.repo)}</span>` +
+            `<span class="hash">${esc(c.hash)}</span>` +
+            `<span class="subject">${esc(c.subject)}</span>` +
+            `<span class="time">${esc((c.time || '').slice(11, 16))}</span>` +
+            `</div><div class="commit-detail">${detail}</div>`;
+          item.addEventListener('click', (ev) => {
+            const link = ev.target.closest('.commit-link');
+            if (link) { window.lumia.openExternal(link.dataset.url); return; }
+            item.classList.toggle('open');
+          });
+          box.appendChild(item);
         }
       } catch (e) {
         document.getElementById('sub').textContent = '无法连接后端 (:8787)。';

@@ -1,5 +1,5 @@
 'use strict';
-const { app, Tray, Menu, BrowserWindow, ipcMain, screen, nativeImage, dialog } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, screen, nativeImage, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -806,6 +806,11 @@ ipcMain.handle('pick-directory', async (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   const r = await dialog.showOpenDialog(w, { properties: ['openDirectory'] });
   return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.on('open-external', (_e, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+  log('ipc', 'open-external', { url });
+  shell.openExternal(url);
 });
 
 function buildTray() {

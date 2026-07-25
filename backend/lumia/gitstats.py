@@ -61,43 +61,80 @@ def commits_today(repo: Path) -> list[dict[str, str]]:
         [
             "log",
             f"--since={since}",
-            "--pretty=format:%h\x1f%an\x1f%cI\x1f%s",
+            "--pretty=format:%H\x1f%h\x1f%an\x1f%cI\x1f%s\x1f%b\x1e",
             "--all",
         ],
     )
     commits: list[dict[str, str]] = []
-    for line in out.splitlines():
-        if not line.strip():
+    for chunk in out.split("\x1e"):
+        chunk = chunk.strip("\r\n")
+        if not chunk.strip():
             continue
-        parts = line.split("\x1f")
-        if len(parts) != 4:
+        parts = chunk.split("\x1f")
+        if len(parts) != 6:
             continue
-        h, author, when, subject = parts
-        commits.append({"hash": h, "author": author, "time": when, "subject": subject})
+        full, short, author, when, subject, body = parts
+        commits.append(
+            {
+                "hash": short,
+                "full_hash": full,
+                "author": author,
+                "time": when,
+                "subject": subject,
+                "body": body.strip(),
+            }
+        )
     return commits
+
+
+def _remote_web_url(repo: Path) -> str | None:
+    try:
+        raw = _git(repo, ["config", "--get", "remote.origin.url"]).strip()
+    except Exception:
+        return None
+    if not raw:
+        return None
+    url = raw
+    if url.startswith("git@"):
+        host, _, path = url[4:].partition(":")
+        url = f"https://{host}/{path}"
+    elif url.startswith("ssh://"):
+        rest = url[6:]
+        if rest.startswith("git@"):
+            rest = rest[4:]
+        url = "https://" + rest
+    if url.endswith(".git"):
+        url = url[:-4]
+    if url.startswith("http://") or url.startswith("https://"):
+        return url.rstrip("/")
+    return None
 
 
 def achievements(config: Config) -> dict[str, Any]:
     repos = config.get("git", "repos", default=[]) or []
-    result: list[dict[str, Any]] = []
-    total = 0
+    repo_infos: list[dict[str, Any]] = []
+    all_commits: list[dict[str, Any]] = []
     for raw in repos:
         repo = Path(raw)
-        entry: dict[str, Any] = {"repo": str(repo), "name": repo.name}
+        name = repo.name or repo.resolve().name
+        entry: dict[str, Any] = {"repo": str(repo), "name": name}
         if not (repo / ".git").exists():
             entry["error"] = "not a git repo"
-            entry["commits"] = []
         else:
             try:
                 commits = commits_today(repo)
-                entry["commits"] = commits
-                total += len(commits)
+                web = _remote_web_url(repo)
+                for c in commits:
+                    c["repo"] = name
+                    c["url"] = f"{web}/commit/{c['full_hash']}" if web else None
+                all_commits.extend(commits)
             except Exception as exc:
                 entry["error"] = str(exc)
-                entry["commits"] = []
-        result.append(entry)
+        repo_infos.append(entry)
+    all_commits.sort(key=lambda c: c["time"], reverse=True)
     return {
         "date": date.today().isoformat(),
-        "total_commits": total,
-        "repos": result,
+        "total_commits": len(all_commits),
+        "commits": all_commits,
+        "repos": repo_infos,
     }
