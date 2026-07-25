@@ -2,10 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file: data:;" />
   <style>
+    @font-face {
+      font-family: "Minecraft AE";
+      src: url("../assets/Minecraft_AE.ttf") format("truetype");
+    }
     html, body { margin: 0; height: 100%; background: #141318; overflow: hidden;
-      font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
+      font-family: "Minecraft AE", "Segoe UI", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: none; text-rendering: optimizeSpeed;
+      -webkit-user-select: none; cursor: default; }
     .wrap { height: 100%; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 16px; color: #f2f0f7; }
     .title { font-size: 36px; font-weight: 700; color: #f5b7ad; }
@@ -14,11 +20,12 @@
     .count.warn { color: #e0887a; }
     .count.done { font-size: 44px; }
     .hint { font-size: 14px; color: #8a8697; }
-    .btn { margin-top: 12px; padding: 12px 32px; font-size: 16px; border: none; border-radius: 10px;
-      background: linear-gradient(135deg, #e0887a, #b56a75); color: #fff; cursor: pointer; }
+    .btn { margin-top: 12px; padding: 12px 32px; font-size: 16px; border: 2px solid #f5b7ad; border-radius: 0;
+      background: #e0887a; color: #201b1a; cursor: pointer; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5); }
+    .btn:active { transform: translate(3px, 3px); box-shadow: none; }
     .btn:disabled { opacity: 0.45; pointer-events: none; }
-    .btn.ghost { background: transparent; border: 1px solid #4a4655; color: #8a8697; font-size: 13px;
-      padding: 8px 20px; margin-top: 4px; }
+    .btn.ghost { background: transparent; border: 2px solid #4a4655; color: #8a8697; font-size: 13px;
+      padding: 8px 20px; margin-top: 4px; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5); }
     .err { font-size: 13px; color: #e0887a; min-height: 18px; }
   </style>
 </head>
@@ -41,6 +48,9 @@
     const delayBtn = document.getElementById('delayBtn');
     const saveBtn = document.getElementById('saveBtn');
     const errEl = document.getElementById('err');
+
+    // block the system shutdown so this window survives when the user hits cancel
+    window.onbeforeunload = (e) => { e.returnValue = false; return false; };
 
     window.lumia.onEvent((ev) => {
       if (ev.type !== 'lockdown') return;

@@ -2,15 +2,21 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file: data:;" />
   <style>
+    @font-face {
+      font-family: "Minecraft AE";
+      src: url("../assets/Minecraft_AE.ttf") format("truetype");
+    }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
-      font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
+      font-family: "Minecraft AE", "Segoe UI", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: none; text-rendering: optimizeSpeed;
+      -webkit-user-select: none; cursor: default; }
     .card {
       box-sizing: border-box; margin: 8px;
-      background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 14px;
+      background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 0;
       padding: 14px 16px; display: flex; flex-direction: column;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.45); border: 1px solid rgba(224,136,122,0.35);
+      border: 2px solid #e0887a; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
     }
     .title { font-size: 14px; font-weight: 600; color: #f5b7ad; }
     .msg { font-size: 13px; line-height: 1.45; margin-top: 6px; flex: 1; color: #d8d4e0; }

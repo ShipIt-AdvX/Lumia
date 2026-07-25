@@ -2,23 +2,30 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file: data:;" />
   <style>
+    @font-face {
+      font-family: "Minecraft AE";
+      src: url("../assets/Minecraft_AE.ttf") format("truetype");
+    }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
-      font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
+      font-family: "Minecraft AE", "Segoe UI", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: none; text-rendering: optimizeSpeed;
+      -webkit-user-select: none; cursor: default; }
     .card {
       box-sizing: border-box; margin: 8px;
-      background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 14px;
+      background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 0;
       padding: 14px 16px; display: flex; flex-direction: column;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.45); border: 1px solid rgba(224,136,122,0.35);
+      border: 2px solid #e0887a; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
     }
     .title { font-size: 14px; font-weight: 600; color: #f5b7ad; }
     .msg { font-size: 13px; line-height: 1.45; margin-top: 6px; flex: 1; color: #d8d4e0; }
     .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-    button { font: inherit; font-size: 12px; border: none; border-radius: 8px; padding: 6px 12px;
-      background: #2f2d38; color: #e8e5ef; cursor: pointer; }
+    button { font: inherit; font-size: 12px; border: 2px solid #4a4757; border-radius: 0; padding: 5px 11px;
+      background: #2f2d38; color: #e8e5ef; cursor: pointer; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5); }
     button:hover { background: #3b3947; }
-    button.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
+    button:active { transform: translate(2px, 2px); box-shadow: none; }
+    button.primary { background: #e0887a; border-color: #f5b7ad; color: #201b1a; font-weight: 600; }
     button.primary:hover { background: #ec9a8d; }
     button:disabled { opacity: 0.45; pointer-events: none; }
     .close { position: absolute; top: 12px; right: 16px; font-size: 14px; color: #8a8697; }

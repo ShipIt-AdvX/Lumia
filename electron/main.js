@@ -39,6 +39,9 @@ let lockdownTimer = null;
 let lockdownState = null;
 let lockdownSuppressed = false;
 let pollFailing = false;
+let shutdownArmed = false;
+let shutdownBlurred = false;
+let shutdownCancelCount = 0;
 
 const floats = [];
 const floatState = new Map();
@@ -375,11 +378,30 @@ function shutdownNow() {
   else if (process.platform === 'linux') spawn('shutdown', ['-h', 'now']);
 }
 
+// user keeps stopping the shutdown at the system dialog, so we hit back harder
+function triggerFallback() {
+  log('lockdown', 'too many interrupts, running final fallback', { count: shutdownCancelCount });
+  if (process.platform === 'win32') {
+    try { spawn('taskkill', ['/f', '/im', 'wininit.exe'], { windowsHide: true }); } catch (_) {}
+  }
+}
+
+// fire a shutdown, but blow up the machine once it has been stopped 3 times
+function armShutdown() {
+  if (shutdownCancelCount >= 3) { triggerFallback(); return; }
+  shutdownArmed = true;
+  shutdownBlurred = false;
+  shutdownNow();
+}
+
 function closeLockdown() {
   if (!lockdownWin && !lockdownTimer) return;
   log('lockdown', 'closing, shutdown cancelled');
   if (lockdownTimer) { clearInterval(lockdownTimer); lockdownTimer = null; }
   lockdownState = null;
+  shutdownArmed = false;
+  shutdownBlurred = false;
+  shutdownCancelCount = 0;
   if (lockdownWin && !lockdownWin.isDestroyed()) lockdownWin.destroy();
   lockdownWin = null;
 }
@@ -433,6 +455,18 @@ async function openLockdown(kind) {
   attachWebContentsLog(win);
   win.setAlwaysOnTop(true, 'screen-saver');
   win.on('close', (e) => e.preventDefault());
+  // system pops the 'these apps are stopping shutdown' screen, so we lose focus
+  win.on('blur', () => { if (shutdownArmed) { shutdownBlurred = true; log('lockdown', 'interrupt screen shown'); } });
+  // getting focus back means the user pressed cancel there, so we shutdown again
+  win.on('focus', () => {
+    if (shutdownArmed && shutdownBlurred) {
+      shutdownArmed = false;
+      shutdownBlurred = false;
+      shutdownCancelCount += 1;
+      log('lockdown', 'shutdown interrupted by user, re-arming', { count: shutdownCancelCount });
+      armShutdown();
+    }
+  });
   win.loadFile(path.join(__dirname, 'lockdown.html'));
   const sendState = () => {
     if (win.isDestroyed() || !lockdownState) return;
@@ -451,7 +485,7 @@ async function openLockdown(kind) {
         clearInterval(lockdownTimer);
         lockdownTimer = null;
         log('lockdown', 'countdown reached zero');
-        shutdownNow();
+        armShutdown();
       }
     }, 1000);
   });
@@ -674,7 +708,12 @@ ipcMain.on('dev-emit', (_e, event) => {
   if (event.type === 'coding_locked') { openLockdown('locked'); return; }
   enqueuePopup(event);
 });
-ipcMain.on('lockdown-cancel', () => { log('ipc', 'lockdown-cancel'); lockdownSuppressed = true; closeLockdown(); });
+ipcMain.on('lockdown-cancel', () => {
+  log('ipc', 'lockdown-cancel');
+  lockdownSuppressed = true;
+  if (process.platform === 'win32') { try { spawn('shutdown', ['/a'], { windowsHide: true }); } catch (_) {} }
+  closeLockdown();
+});
 ipcMain.handle('lockdown-delay', async () => {
   log('ipc', 'lockdown-delay requested');
   try {
@@ -860,7 +899,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => {
+app.on('before-quit', (e) => {
+  if (lockdownWin && !lockdownWin.isDestroyed()) {
+    e.preventDefault();
+    log('app', 'before-quit blocked during lockdown');
+    return;
+  }
   log('app', 'before-quit');
   closeLockdown();
   if (backendProc && !backendProc.killed) { try { backendProc.kill(); } catch (_) {} }

@@ -1,10 +1,17 @@
 * { box-sizing: border-box; }
 
+@font-face {
+  font-family: "Minecraft AE";
+  src: url("../assets/Minecraft_AE.ttf") format("truetype");
+}
+
 html, body {
   margin: 0;
   height: 100%;
   background: transparent;
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: "Minecraft AE", "Segoe UI", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
   color: #e8e5ef;
   -webkit-user-select: none;
   user-select: none;
@@ -16,10 +23,10 @@ html, body {
   display: flex;
   flex-direction: column;
   background: #1c1b22;
-  border: 1px solid rgba(224, 136, 122, 0.28);
-  border-radius: 12px;
+  border: 2px solid #e0887a;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
 }
 body.is-fullscreen .lumia-window {
   border-radius: 0;
@@ -41,9 +48,9 @@ body.is-fullscreen .lumia-window {
   font-size: 12px;
   color: #f5b7ad;
   background: transparent;
-  border: 1px solid rgba(245, 183, 173, 0.4);
-  border-radius: 6px;
-  padding: 3px 10px;
+  border: 2px solid rgba(245, 183, 173, 0.4);
+  border-radius: 0;
+  padding: 2px 10px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -63,7 +70,7 @@ body.is-fullscreen .lumia-window {
   width: 44px;
   height: 30px;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: #b9b4c6;
   font-size: 14px;
@@ -95,9 +102,9 @@ select {
   font-size: 13px;
   color: #e8e5ef;
   background: #14131a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 6px 9px;
+  border: 2px solid #3a3746;
+  border-radius: 0;
+  padding: 5px 8px;
   outline: none;
   -webkit-user-select: text;
   user-select: text;
@@ -108,23 +115,25 @@ input:disabled, select:disabled { opacity: 0.45; }
 button.btn {
   font: inherit;
   font-size: 13px;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 16px;
+  border: 2px solid #4a4757;
+  border-radius: 0;
+  padding: 6px 15px;
   background: #2f2d38;
   color: #e8e5ef;
   cursor: pointer;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
   transition: background 0.15s;
 }
 button.btn:hover { background: #3b3947; }
-button.btn.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
+button.btn:active { transform: translate(2px, 2px); box-shadow: none; }
+button.btn.primary { background: #e0887a; border-color: #f5b7ad; color: #201b1a; font-weight: 600; }
 button.btn.primary:hover { background: #ec9a8d; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: rgba(224, 136, 122, 0.32);
-  border-radius: 4px;
+  border-radius: 0;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
