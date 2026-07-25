@@ -37,6 +37,7 @@ let delayWidget = null;
 let lockdownWin = null;
 let lockdownTimer = null;
 let lockdownState = null;
+let lockdownSuppressed = false;
 let pollFailing = false;
 
 const floats = [];
@@ -510,17 +511,35 @@ async function pollEvents() {
   try {
     const data = await api('/api/events/poll?after=' + lastEventId);
     if (pollFailing) { pollFailing = false; log('poll', 'backend reachable again'); }
+    if (typeof data.latest_id === 'number' && data.latest_id < lastEventId) {
+      log('poll', 'event watermark rewound, backend restarted', { from: lastEventId, to: data.latest_id });
+      lastEventId = data.latest_id;
+      return;
+    }
     for (const event of data.events || []) {
       lastEventId = Math.max(lastEventId, event.id);
       log('poll', 'event received', { id: event.id, type: event.type, title: event.title });
       if (event.type === 'coding_delay_started' && delayWidget && !delayWidget.isDestroyed()) { log('poll', 'skip coding_delay_started, delay widget alive'); continue; }
-      if (event.type === 'coding_limit') { await openLockdown('limit'); continue; }
-      if (event.type === 'coding_locked') { await openLockdown('locked'); continue; }
+      if (event.type === 'coding_limit') { lockdownSuppressed = false; await openLockdown('limit'); continue; }
+      if (event.type === 'coding_locked') { lockdownSuppressed = false; await openLockdown('locked'); continue; }
       enqueuePopup(event);
     }
   } catch (err) {
     if (!pollFailing) { pollFailing = true; log('poll', 'backend unreachable: ' + err.message); }
   }
+}
+
+async function checkLockdownState() {
+  try {
+    const s = await api('/api/state');
+    const st = (s.coding && s.coding.state) || '';
+    if (st !== 'limit_reached' && st !== 'day_locked') { lockdownSuppressed = false; return; }
+    if (lockdownSuppressed) return;
+    if (delayWidget && !delayWidget.isDestroyed()) return;
+    if (lockdownWin && !lockdownWin.isDestroyed()) return;
+    log('lockdown', 'level check triggered', { state: st });
+    await openLockdown(st === 'limit_reached' ? 'limit' : 'locked');
+  } catch (_) {}
 }
 
 async function requestDelay() {
@@ -537,7 +556,7 @@ async function requestDelay() {
     } else {
       enqueuePopup({
         type: 'delay_feedback', title: '延时不可用',
-        message: d.used_today ? '今天已经用过延时了' : '两天内只能使用一次延时', actions: [],
+        message: d.used_today ? '今天已经用过延时了' : '延时当前不可用', actions: [],
       });
     }
   } catch (_) {
@@ -587,7 +606,7 @@ ipcMain.on('dev-emit', (_e, event) => {
   if (event.type === 'coding_locked') { openLockdown('locked'); return; }
   enqueuePopup(event);
 });
-ipcMain.on('lockdown-cancel', () => { log('ipc', 'lockdown-cancel'); closeLockdown(); });
+ipcMain.on('lockdown-cancel', () => { log('ipc', 'lockdown-cancel'); lockdownSuppressed = true; closeLockdown(); });
 ipcMain.handle('lockdown-delay', async () => {
   log('ipc', 'lockdown-delay requested');
   try {
@@ -719,7 +738,10 @@ app.whenReady().then(() => {
   });
   maybeSpawnBackend();
   buildTray();
-  initLastEventId().then(() => setInterval(pollEvents, CFG.pollIntervalMs));
+  initLastEventId().then(() => {
+    setInterval(pollEvents, CFG.pollIntervalMs);
+    setInterval(checkLockdownState, 5000);
+  });
 });
 
 app.on('window-all-closed', () => {});
