@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('lumia', {
 
   lockdown: {
     requestDelay: () => ipcRenderer.invoke('lockdown-delay'),
+    requestSave: () => ipcRenderer.invoke('lockdown-save'),
     cancel: () => ipcRenderer.send('lockdown-cancel'),
   },
 

@@ -36,6 +36,10 @@ class ChairRequest(BaseModel):
     source: str = "manual"
 
 
+class DevUsed(BaseModel):
+    minutes: float
+
+
 async def _coding_loop() -> None:
     while True:
         try:
@@ -96,6 +100,11 @@ def coding_delay() -> dict[str, Any]:
     return tracker.request_delay()
 
 
+@app.post("/api/coding/save-grace")
+def coding_save_grace() -> dict[str, Any]:
+    return tracker.request_save_grace()
+
+
 @app.post("/api/dev/reset")
 def dev_reset() -> dict[str, Any]:
     return tracker.reset_today()
@@ -104,6 +113,11 @@ def dev_reset() -> dict[str, Any]:
 @app.post("/api/dev/reset-history")
 def dev_reset_history() -> dict[str, Any]:
     return tracker.reset_history()
+
+
+@app.post("/api/dev/set-used")
+def dev_set_used(body: DevUsed) -> dict[str, Any]:
+    return tracker.set_used_today(int(round(body.minutes * 60)))
 
 
 @app.get("/api/events/poll")

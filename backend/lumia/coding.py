@@ -48,13 +48,7 @@ class CodingTracker:
         return int(self._cfg.get("coding", "delay_minutes", default=60))
 
     def delay_available(self, day: dict[str, Any]) -> bool:
-        if day["delay_used"]:
-            return False
-        last = self._db.last_delay_date()
-        if last is None:
-            return True
-        gap = (date.today() - date.fromisoformat(last)).days
-        return gap >= 2
+        return not day["delay_used"]
 
     def tick(self, coding_now: bool, dt: int = 1) -> None:
         today = _today()
@@ -136,6 +130,7 @@ class CodingTracker:
             "k_base": float(self._cfg.get("coding", "conversion_k", default=0.5)),
             "k_effective": round(self._k_effective(today), 4),
             "week_delay_penalty": self._penalty_exponent(today),
+            "save_grace_used": bool(day["save_grace_used"]),
             "delay": {
                 "available": self.delay_available(day),
                 "used_today": delay_used,
@@ -149,8 +144,6 @@ class CodingTracker:
         day = self._db.get_day(today.isoformat())
         if day["delay_used"]:
             return {"ok": False, "reason": "今天已经用过延时了。"}
-        if not self.delay_available(day):
-            return {"ok": False, "reason": "两天内只能使用一次延时。"}
         minutes = self._delay_minutes()
         ends_at = (datetime.now() + timedelta(minutes=minutes)).isoformat(
             timespec="seconds"
@@ -165,10 +158,22 @@ class CodingTracker:
         )
         return {"ok": True, "ends_at": ends_at, "minutes": minutes}
 
+    def request_save_grace(self) -> dict[str, Any]:
+        today = _today()
+        day = self._db.get_day(today)
+        if day["save_grace_used"]:
+            return {"ok": False, "reason": "保存文件的机会今天已经用过了。"}
+        minutes = 5
+        ends_at = (datetime.now() + timedelta(minutes=minutes)).isoformat(
+            timespec="seconds"
+        )
+        self._db.set_day(today, save_grace_used=1)
+        return {"ok": True, "ends_at": ends_at, "minutes": minutes}
+
     def reset_today(self) -> dict[str, Any]:
         today = _today()
         self._db.get_day(today)
-        self._db.set_day(today, used_seconds=0, delay_used=0, delay_ends_at=None, locked=0)
+        self._db.set_day(today, used_seconds=0, delay_used=0, delay_ends_at=None, locked=0, save_grace_used=0)
         self._db.clear_delay_log(today)
         self._state = "idle"
         self._active_date = today
@@ -180,3 +185,11 @@ class CodingTracker:
         self._active_date = _today()
         self._db.get_day(self._active_date)
         return {"ok": True}
+
+    def set_used_today(self, seconds: int) -> dict[str, Any]:
+        today = _today()
+        seconds = max(0, int(seconds))
+        self._db.get_day(today)
+        self._db.set_day(today, used_seconds=seconds)
+        self._evaluate()
+        return {"ok": True, "used_seconds": seconds}

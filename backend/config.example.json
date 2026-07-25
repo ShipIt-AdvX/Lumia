@@ -26,7 +26,18 @@
       "cmd.exe",
       "wsl.exe",
       "windbg.exe",
-      "node.exe"
+      "node.exe",
+      "code",
+      "cursor",
+      "idea",
+      "pycharm",
+      "clion",
+      "nvim",
+      "vim",
+      "konsole",
+      "alacritty",
+      "kitty",
+      "node"
     ]
   },
   "reminders": {

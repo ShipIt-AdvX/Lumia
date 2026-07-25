@@ -349,21 +349,29 @@ function closeLockdown() {
 }
 
 async function openLockdown(kind) {
+  let delayAvailable = false;
+  let minutes = 0;
+  let saveAvailable = false;
+  try {
+    const s = await api('/api/state');
+    const c = s.coding || {};
+    const d = c.delay || {};
+    if (kind === 'limit') {
+      delayAvailable = !!d.available;
+      minutes = d.minutes || 0;
+    } else {
+      saveAvailable = !c.save_grace_used;
+    }
+  } catch (_) {}
   if (lockdownWin && !lockdownWin.isDestroyed()) {
-    if (lockdownState && kind === 'locked') { lockdownState.kind = 'locked'; lockdownState.delayAvailable = false; }
+    if (lockdownState && kind === 'locked') {
+      lockdownState.kind = 'locked';
+      lockdownState.delayAvailable = false;
+      lockdownState.saveAvailable = saveAvailable;
+    }
     log('lockdown', 'already open, state escalated', { kind });
     lockdownWin.moveTop();
     return;
-  }
-  let delayAvailable = false;
-  let minutes = 0;
-  if (kind === 'limit') {
-    try {
-      const s = await api('/api/state');
-      const d = (s.coding && s.coding.delay) || {};
-      delayAvailable = !!d.available;
-      minutes = d.minutes || 0;
-    } catch (_) {}
   }
   const win = new BrowserWindow({
     fullscreen: true,
@@ -384,7 +392,7 @@ async function openLockdown(kind) {
     },
   });
   lockdownWin = win;
-  lockdownState = { kind, delayAvailable, minutes, remaining: 60 };
+  lockdownState = { kind, delayAvailable, minutes, saveAvailable, remaining: 60 };
   log('lockdown', 'created win#' + win.id, lockdownState);
   attachWebContentsLog(win);
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -418,8 +426,8 @@ async function openLockdown(kind) {
   });
 }
 
-function openDelayWidget(endsAt, minutes) {
-  if (delayWidget && !delayWidget.isDestroyed()) { log('delay-widget', 'already open, moveTop'); delayWidget.moveTop(); return; }
+function openCountdownWidget(opts) {
+  if (delayWidget && !delayWidget.isDestroyed()) { log(opts.key, 'already open, moveTop'); delayWidget.moveTop(); return; }
   const width = CFG.popup.width, height = CFG.popup.height;
   const win = new BrowserWindow({
     width, height,
@@ -437,12 +445,12 @@ function openDelayWidget(endsAt, minutes) {
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
-      additionalArguments: ['--lumia-base=' + BASE, '--lumia-title=延时'],
+      additionalArguments: ['--lumia-base=' + BASE, '--lumia-title=' + opts.title],
     },
   });
   delayWidget = win;
   const st = {
-    win, key: 'delay-widget', width, height,
+    win, key: opts.key, width, height,
     isFullscreen: false, collapsed: false,
     retracted: false, hovering: false, retractTimer: null,
     detached: false, dragTimer: null,
@@ -451,7 +459,7 @@ function openDelayWidget(endsAt, minutes) {
   };
   floatState.set(win.id, st);
   win.setAlwaysOnTop(true, 'floating');
-  log('delay-widget', 'created win#' + win.id, { endsAt, minutes });
+  log(opts.key, 'created win#' + win.id, { endsAt: opts.endsAt, minutes: opts.minutes });
   attachWebContentsLog(win);
   win.loadFile(path.join(__dirname, 'delay.html'));
 
@@ -459,7 +467,7 @@ function openDelayWidget(endsAt, minutes) {
     if (!win.isDestroyed()) win.webContents.send('show-event', { type: 'delay_widget', title, message, actions: [] });
   };
   const fmtRemaining = () => {
-    const left = Math.max(0, Math.round((new Date(endsAt) - Date.now()) / 1000));
+    const left = Math.max(0, Math.round((new Date(opts.endsAt) - Date.now()) / 1000));
     const mm = String(Math.floor(left / 60)).padStart(2, '0');
     const ss = String(left % 60).padStart(2, '0');
     return { left, text: mm + ':' + ss };
@@ -472,18 +480,18 @@ function openDelayWidget(endsAt, minutes) {
     const cx = wa.x + Math.round((wa.width - width) / 2);
     const cy = wa.y + Math.round((wa.height - height) / 2);
     st.slotYCache = cy;
-    sendCard('延时已开启', `最后 ${minutes} 分钟，用完今天就真的下班了。`);
+    sendCard(opts.startTitle, opts.startMsg);
     win.setBounds({ x: wa.x + wa.width, y: cy, width, height });
     win.showInactive();
     animateBounds(win, { x: cx, y: cy, width, height }, FLOAT.animMs);
 
     phaseTimers.push(setTimeout(() => {
       const r = fmtRemaining();
-      sendCard('延时剩余', r.text);
+      sendCard(opts.tickTitle, r.text);
       tickTimer = setInterval(() => {
         const t = fmtRemaining();
-        sendCard('延时剩余', t.text);
-        if (t.left <= 0) { clearInterval(tickTimer); tickTimer = null; log('delay-widget', 'countdown finished, closing'); closeFloat(win); }
+        sendCard(opts.tickTitle, t.text);
+        if (t.left <= 0) { clearInterval(tickTimer); tickTimer = null; log(opts.key, 'countdown finished'); opts.onZero(win); }
       }, 1000);
     }, 2000));
 
@@ -494,13 +502,31 @@ function openDelayWidget(endsAt, minutes) {
   });
 
   win.on('closed', () => {
-    log('delay-widget', 'win#' + win.id + ' closed');
+    log(opts.key, 'win#' + win.id + ' closed');
     phaseTimers.forEach(clearTimeout);
     if (tickTimer) clearInterval(tickTimer);
     if (st.animTimer) clearInterval(st.animTimer);
     if (st.retractTimer) clearTimeout(st.retractTimer);
     floatState.delete(win.id);
     if (delayWidget === win) delayWidget = null;
+  });
+}
+
+function openDelayWidget(endsAt, minutes) {
+  openCountdownWidget({
+    key: 'delay-widget', title: '延时', endsAt, minutes,
+    startTitle: '延时已开启', startMsg: `最后 ${minutes} 分钟，用完今天就真的下班了。`,
+    tickTitle: '延时剩余',
+    onZero: (win) => closeFloat(win),
+  });
+}
+
+function openSaveWidget(endsAt, minutes) {
+  openCountdownWidget({
+    key: 'save-widget', title: '保存文件', endsAt, minutes,
+    startTitle: '保存文件时间', startMsg: `最后 ${minutes} 分钟，保存好手头的工作。`,
+    tickTitle: '保存剩余',
+    onZero: (win) => { closeFloat(win); openLockdown('locked'); },
   });
 }
 
@@ -621,6 +647,23 @@ ipcMain.handle('lockdown-delay', async () => {
     return { ok: false, reason: (r && r.reason) || '后端拒绝了这次延时请求' };
   } catch (_) {
     log('lockdown', 'delay failed: backend unreachable');
+    return { ok: false, reason: '后端未连接' };
+  }
+});
+ipcMain.handle('lockdown-save', async () => {
+  log('ipc', 'lockdown-save requested');
+  try {
+    const r = await api('/api/coding/save-grace', { method: 'POST' });
+    if (r && r.ok) {
+      log('lockdown', 'save grace granted', { minutes: r.minutes, endsAt: r.ends_at });
+      closeLockdown();
+      openSaveWidget(r.ends_at, r.minutes);
+      return { ok: true };
+    }
+    log('lockdown', 'save grace rejected', { reason: r && r.reason });
+    return { ok: false, reason: (r && r.reason) || '后端拒绝了这次请求' };
+  } catch (_) {
+    log('lockdown', 'save grace failed: backend unreachable');
     return { ok: false, reason: '后端未连接' };
   }
 });

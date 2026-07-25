@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS coding_daily (
     used_seconds    INTEGER NOT NULL DEFAULT 0,
     delay_used      INTEGER NOT NULL DEFAULT 0,
     delay_ends_at   TEXT,
-    locked          INTEGER NOT NULL DEFAULT 0
+    locked          INTEGER NOT NULL DEFAULT 0,
+    save_grace_used INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS delay_log (
@@ -58,6 +59,13 @@ class Database:
         with self._lock:
             self._conn.executescript(SCHEMA)
             self._conn.commit()
+            try:
+                self._conn.execute(
+                    "ALTER TABLE coding_daily ADD COLUMN save_grace_used INTEGER NOT NULL DEFAULT 0"
+                )
+                self._conn.commit()
+            except sqlite3.OperationalError:
+                pass
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._lock:

@@ -29,6 +29,7 @@
     <div class="count" id="count"></div>
     <div class="hint" id="hint"></div>
     <button class="btn" id="delayBtn" hidden></button>
+    <button class="btn" id="saveBtn" hidden>我还需要保存文件（5 分钟）</button>
     <button class="btn ghost" id="cancelBtn">取消本次关机</button>
     <div class="err" id="err"></div>
   </div>
@@ -38,6 +39,7 @@
     const countEl = document.getElementById('count');
     const hintEl = document.getElementById('hint');
     const delayBtn = document.getElementById('delayBtn');
+    const saveBtn = document.getElementById('saveBtn');
     const errEl = document.getElementById('err');
 
     window.lumia.onEvent((ev) => {
@@ -51,10 +53,11 @@
         titleEl.textContent = '今天到此为止';
         msgEl.textContent = '开发时长（含延时）已结束，电脑将自动关机';
       }
+      delayBtn.hidden = !ev.delayAvailable || ev.remaining <= 0;
       if (ev.delayAvailable) {
-        delayBtn.hidden = false;
         delayBtn.textContent = '开启延时（' + ev.minutes + ' 分钟）';
       }
+      saveBtn.hidden = !ev.saveAvailable || ev.remaining <= 0;
       if (ev.remaining > 0) {
         countEl.textContent = ev.remaining;
         countEl.classList.remove('done');
@@ -63,7 +66,6 @@
         countEl.textContent = '正在关机…';
         countEl.classList.add('done');
         hintEl.textContent = '';
-        delayBtn.hidden = true;
       }
       countEl.classList.toggle('warn', ev.remaining > 0 && ev.remaining <= 10);
     });
@@ -75,6 +77,16 @@
       if (!r || !r.ok) {
         errEl.textContent = (r && r.reason) || '延时失败';
         delayBtn.disabled = false;
+      }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      errEl.textContent = '';
+      const r = await window.lumia.lockdown.requestSave();
+      if (!r || !r.ok) {
+        errEl.textContent = (r && r.reason) || '申请失败';
+        saveBtn.disabled = false;
       }
     });
 
