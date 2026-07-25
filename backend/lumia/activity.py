@@ -51,11 +51,52 @@ if _IS_WINDOWS:
 
 else:
 
-    def foreground_process() -> str | None:
-        return None
+    if sys.platform.startswith("linux"):
+        import re
+        import subprocess
 
-    def idle_seconds() -> float:
-        return 0.0
+        def _run(cmd: list[str]) -> str | None:
+            try:
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=1)
+            except Exception:
+                return None
+            if out.returncode != 0:
+                return None
+            return out.stdout.strip()
+
+        def foreground_process() -> str | None:
+            raw = _run(["xprop", "-root", "-notype", "_NET_ACTIVE_WINDOW"])
+            if not raw:
+                return None
+            m = re.search(r"0x[0-9a-fA-F]+", raw)
+            if not m or int(m.group(0), 16) == 0:
+                return None
+            pid_raw = _run(["xprop", "-id", m.group(0), "-notype", "_NET_WM_PID"])
+            if not pid_raw:
+                return None
+            pm = re.search(r"(\d+)\s*$", pid_raw)
+            if not pm:
+                return None
+            try:
+                with open(f"/proc/{pm.group(1)}/comm", encoding="utf-8") as f:
+                    name = f.read().strip()
+                return name or None
+            except OSError:
+                return None
+
+        def idle_seconds() -> float:
+            raw = _run(["xprintidle"])
+            if raw is None or not raw.isdigit():
+                return 0.0
+            return int(raw) / 1000.0
+
+    else:
+
+        def foreground_process() -> str | None:
+            return None
+
+        def idle_seconds() -> float:
+            return 0.0
 
 
 def is_coding(dev_processes: list[str], idle_threshold: float) -> bool:

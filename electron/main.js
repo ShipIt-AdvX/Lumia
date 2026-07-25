@@ -9,6 +9,12 @@ const BASE = CFG.backend.baseUrl;
 const FLOAT = CFG.float;
 const FRAME_MS = Math.max(1, Math.round(1000 / (FLOAT.fps || 120)));
 
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform-hint', 'x11');
+  app.commandLine.appendSwitch('enable-transparent-visuals');
+  app.disableHardwareAcceleration();
+}
+
 let tray = null;
 let backendProc = null;
 let lastEventId = 0;
