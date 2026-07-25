@@ -161,8 +161,10 @@ def chair_stretch(body: ChairRequest) -> dict[str, Any]:
 
 
 @app.get("/api/achievements/today")
-def achievements_today() -> dict[str, Any]:
-    return gitstats.achievements(config)
+def achievements_today(
+    offset: int = Query(0, ge=0), limit: int = Query(0, ge=0, le=100)
+) -> dict[str, Any]:
+    return gitstats.achievements(config, offset=offset, limit=limit)
 
 
 @app.post("/api/github/auth/start")

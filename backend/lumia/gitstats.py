@@ -382,7 +382,7 @@ def _is_own_commit(c: dict[str, Any], me_email: str, me_name: str, username: str
     return False
 
 
-def achievements(config: Config) -> dict[str, Any]:
+def achievements(config: Config, offset: int = 0, limit: int = 0) -> dict[str, Any]:
     repos = config.get("git", "repos", default=[]) or []
     username = (config.get("git", "github_username", default="") or "").strip()
     token = (config.get("git", "github_token", default="") or "").strip()
@@ -410,10 +410,8 @@ def achievements(config: Config) -> dict[str, Any]:
                         c["author"], c["author_email"], me_email, me_name, username
                     )
                     c["url"] = f"{web}/commit/{c['full_hash']}" if web else None
-                    email = c["author_email"]
-                    if email not in identities:
-                        identities[email] = _resolve_identity(email, token)
-                    c["author_url"], c["avatar_url"] = identities[email]
+                    c["author_url"] = None
+                    c["avatar_url"] = None
                 all_commits.extend(commits)
             except Exception as exc:
                 entry["error"] = str(exc)
@@ -423,13 +421,22 @@ def achievements(config: Config) -> dict[str, Any]:
         gh_commits, github_error = _github_commits_today(username, token)
         seen = {c["full_hash"] for c in gh_commits}
         all_commits = [c for c in all_commits if c["full_hash"] not in seen]
-        for c in all_commits:
-            if c.get("own_author") and not c["author_url"]:
-                c["author_url"] = f"https://github.com/{username}"
-                c["avatar_url"] = f"https://github.com/{username}.png?size=80"
         all_commits.extend(gh_commits)
-    for c in all_commits:
-        c.pop("own_author", None)
+    all_commits.sort(key=_sort_key, reverse=True)
+    total = len(all_commits)
+    page = all_commits[offset : offset + limit] if limit > 0 else all_commits[offset:]
+    for c in page:
+        own = c.pop("own_author", False)
+        if not c.get("author_url"):
+            email = c["author_email"]
+            if email not in identities:
+                identities[email] = _resolve_identity(email, token)
+            url, avatar = identities[email]
+            if not url and own and username:
+                url = f"https://github.com/{username}"
+                avatar = f"https://github.com/{username}.png?size=80"
+            c["author_url"] = url
+            c["avatar_url"] = avatar
         contributors = [
             {
                 "name": c["author"],
@@ -463,11 +470,11 @@ def achievements(config: Config) -> dict[str, Any]:
             url, avatar = identities[cm_email]
             contributors.append({"name": cm_name, "email": cm_email, "url": url, "avatar": avatar})
         c["contributors"] = contributors
-    all_commits.sort(key=_sort_key, reverse=True)
     return {
         "date": date.today().isoformat(),
-        "total_commits": len(all_commits),
-        "commits": all_commits,
+        "total_commits": total,
+        "commits": page,
+        "offset": offset,
         "repos": repo_infos,
         "github": {"username": username, "error": github_error},
     }
