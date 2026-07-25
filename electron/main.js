@@ -594,8 +594,14 @@ async function checkLockdownState() {
 async function requestDelay() {
   try {
     const s = await api('/api/state');
+    const cs = (s.coding && s.coding.state) || '';
     const d = (s.coding && s.coding.delay) || {};
-    if (d.available) {
+    if (cs !== 'limit_reached') {
+      enqueuePopup({
+        type: 'delay_feedback', title: '延时不可用',
+        message: d.used_today ? '今天已经用过延时了' : '还没到今日开发上限，不需要延时', actions: [],
+      });
+    } else if (d.available) {
       enqueuePopup({
         type: 'delay_confirm', title: '开启延时？',
         message: `本次开发时间将延长 ${d.minutes} 分钟，到时后无法再继续开发. 确定开启吗?`,
@@ -719,10 +725,15 @@ ipcMain.on('float-drag-start', (e) => {
   if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; }
   const cursorStart = screen.getCursorScreenPoint();
   const boundsStart = w.getBounds();
+  let lastX = boundsStart.x, lastY = boundsStart.y;
   st.dragTimer = setInterval(() => {
     if (w.isDestroyed()) { clearInterval(st.dragTimer); return; }
     const c = screen.getCursorScreenPoint();
-    w.setPosition(boundsStart.x + (c.x - cursorStart.x), boundsStart.y + (c.y - cursorStart.y));
+    const nx = boundsStart.x + (c.x - cursorStart.x);
+    const ny = boundsStart.y + (c.y - cursorStart.y);
+    if (nx === lastX && ny === lastY) return;
+    lastX = nx; lastY = ny;
+    w.setBounds({ x: nx, y: ny, width: boundsStart.width, height: boundsStart.height });
   }, FRAME_MS);
 });
 ipcMain.on('float-drag-end', (e) => {
