@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('lumia', {
     dragStart: () => ipcRenderer.send('float-drag-start'),
     dragEnd: () => ipcRenderer.send('float-drag-end'),
     setHover: (hovering) => ipcRenderer.send('float-hover', hovering),
+    reportHeight: (h) => ipcRenderer.send('float-content-height', h),
     onRetractedChanged: (cb) =>
       ipcRenderer.on('retracted-changed', (_e, retracted) => cb(retracted)),
     onFullscreenChanged: (cb) =>

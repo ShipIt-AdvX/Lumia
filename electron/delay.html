@@ -7,7 +7,7 @@
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
       font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
     .card {
-      box-sizing: border-box; height: calc(100% - 16px); margin: 8px;
+      box-sizing: border-box; margin: 8px;
       background: rgba(28, 27, 34, 0.96); color: #f2f0f7; border-radius: 14px;
       padding: 14px 16px; display: flex; flex-direction: column;
       box-shadow: 0 8px 28px rgba(0,0,0,0.45); border: 1px solid rgba(224,136,122,0.35);
@@ -15,7 +15,7 @@
     .title { font-size: 14px; font-weight: 600; color: #f5b7ad; }
     .msg { font-size: 13px; line-height: 1.45; margin-top: 6px; flex: 1; color: #d8d4e0; }
     .msg.time { font-size: 30px; font-weight: 600; letter-spacing: 2px; color: #f2f0f7;
-      display: flex; align-items: center; justify-content: center; margin-top: 0; }
+      display: flex; align-items: center; justify-content: center; margin-top: 0; padding: 6px 0; }
     .handle {
       position: fixed; top: 0; right: 0; width: 4px; height: 100vh;
       background: linear-gradient(180deg, #e0887a, #b56a75);
@@ -33,11 +33,19 @@
   <script>
     const titleEl = document.getElementById('title');
     const msgEl = document.getElementById('msg');
+    const card = document.querySelector('.card');
+    let hasContent = false;
+    const reportH = () => {
+      if (hasContent) window.lumia.win.reportHeight(Math.ceil(card.getBoundingClientRect().height) + 16);
+    };
+    new ResizeObserver(reportH).observe(card);
 
     window.lumia.onEvent((event) => {
       titleEl.textContent = event.title || '延时';
       msgEl.textContent = event.message || '';
       msgEl.classList.toggle('time', /^\d{2,}:\d{2}$/.test(event.message || ''));
+      hasContent = true;
+      reportH();
     });
 
     document.body.addEventListener('mouseenter', () => window.lumia.win.setHover(true));
