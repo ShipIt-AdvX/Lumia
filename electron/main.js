@@ -296,12 +296,30 @@ async function pollEvents() {
   } catch (_) {}
 }
 
+async function requestDelay() {
+  try {
+    const r = await api('/api/coding/delay', { method: 'POST' });
+    if (r && r.ok) { await pollEvents(); }
+    else {
+      enqueuePopup({
+        type: 'delay_feedback', title: '延时失败',
+        message: (r && r.reason) || '后端拒绝了这次延时请求', actions: [],
+      });
+    }
+  } catch (_) {
+    enqueuePopup({
+      type: 'delay_feedback', title: '延时失败',
+      message: '后端未连接', actions: [],
+    });
+  }
+}
+
 ipcMain.on('popup-action', async (evt, payload) => {
   const id = payload && payload.id;
-  if (id === 'delay') { try { await api('/api/coding/delay', { method: 'POST' }); } catch (_) {} }
-  else if (id === 'achievements') { openAchievements(); }
   const w = BrowserWindow.fromWebContents(evt.sender);
   if (w && floatState.has(w.id)) closeFloat(w);
+  if (id === 'delay') { await requestDelay(); }
+  else if (id === 'achievements') { openAchievements(); }
 });
 ipcMain.on('popup-dismiss', (evt) => {
   const w = BrowserWindow.fromWebContents(evt.sender);
@@ -379,11 +397,11 @@ ipcMain.handle('pick-directory', async (e) => {
 
 function buildTray() {
   tray = new Tray(makeTrayIcon());
-  tray.setToolTip('Lumia — 通宵者的睡前仪式');
+  tray.setToolTip('Lumia · 不要在我面前猝死');
   const menu = Menu.buildFromTemplate([
     { label: '查看今日状态', click: showStatusPopup },
     { label: '成就墙', click: openAchievements },
-    { label: '请求延时', click: async () => { try { await api('/api/coding/delay', { method: 'POST' }); } catch (_) {} } },
+    { label: '请求延时', click: requestDelay },
     { type: 'separator' },
     { label: '设置…', click: openSettings },
     { label: '开发者面板', click: openDevPanel },

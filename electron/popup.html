@@ -20,6 +20,7 @@
     button:hover { background: #3b3947; }
     button.primary { background: #e0887a; color: #201b1a; font-weight: 600; }
     button.primary:hover { background: #ec9a8d; }
+    button:disabled { opacity: 0.45; pointer-events: none; }
     .close { position: absolute; top: 12px; right: 16px; font-size: 14px; color: #8a8697; }
   </style>
 </head>
@@ -46,7 +47,10 @@
         const btn = document.createElement('button');
         btn.textContent = a.label;
         if (idx === 0) btn.className = 'primary';
-        btn.addEventListener('click', () => window.lumia.action({ id: a.id }));
+        btn.addEventListener('click', () => {
+          actionsEl.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+          window.lumia.action({ id: a.id });
+        });
         actionsEl.appendChild(btn);
       });
       const dismiss = document.createElement('button');
