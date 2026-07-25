@@ -16,11 +16,12 @@ def _now() -> str:
 
 
 def add_text(db: Database, text: str, source: str = "manual") -> dict[str, Any]:
-    cur = db.execute(
-        "INSERT INTO ideas (ts, kind, text, source, uploaded) VALUES (?,?,?,?,1)",
-        (_now(), "text", text, source),
+    row = db.append(
+        "ideas",
+        {"ts": _now(), "kind": "text", "text": text, "audio_path": None,
+         "source": source, "uploaded": 1},
     )
-    return {"id": cur.lastrowid, "kind": "text", "text": text, "source": source}
+    return {"id": row["id"], "kind": "text", "text": text, "source": source}
 
 
 def add_audio(
@@ -30,12 +31,13 @@ def add_audio(
     suffix = Path(filename).suffix or ".wav"
     stored = AUDIO_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}{suffix}"
     stored.write_bytes(content)
-    cur = db.execute(
-        "INSERT INTO ideas (ts, kind, audio_path, source, uploaded) VALUES (?,?,?,?,1)",
-        (_now(), "audio", str(stored), source),
+    row = db.append(
+        "ideas",
+        {"ts": _now(), "kind": "audio", "text": None, "audio_path": str(stored),
+         "source": source, "uploaded": 1},
     )
     return {
-        "id": cur.lastrowid,
+        "id": row["id"],
         "kind": "audio",
         "audio_path": str(stored),
         "bytes": len(content),
@@ -44,8 +46,4 @@ def add_audio(
 
 
 def list_ideas(db: Database, limit: int = 100) -> list[dict[str, Any]]:
-    rows = db.query(
-        "SELECT * FROM ideas ORDER BY id DESC LIMIT ?",
-        (limit,),
-    )
-    return [dict(r) for r in rows]
+    return db.list_rows("ideas", limit)

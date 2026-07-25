@@ -33,9 +33,10 @@ class Reminders:
             self.seated_since = None
             self._last_sedentary_nudge = None
         self.seated = seated
-        self._db.execute(
-            "INSERT INTO sit_events (ts, seated, pressure) VALUES (?,?,?)",
-            (now.isoformat(timespec="seconds"), 1 if seated else 0, pressure),
+        self._db.append(
+            "sit_events",
+            {"ts": now.isoformat(timespec="seconds"), "seated": 1 if seated else 0,
+             "pressure": pressure},
         )
         return self.sit_snapshot()
 
@@ -111,8 +112,9 @@ class Reminders:
 
     def _emit(self, kind: str, title: str, message: str,
              data: dict[str, Any] | None = None) -> None:
-        self._db.execute(
-            "INSERT INTO reminders_log (ts, kind, message) VALUES (?,?,?)",
-            (datetime.now().isoformat(timespec="seconds"), kind, message),
+        self._db.append(
+            "reminders_log",
+            {"ts": datetime.now().isoformat(timespec="seconds"), "kind": kind,
+             "message": message},
         )
         self._bus.emit(f"reminder_{kind}", title, message, data=data)

@@ -1,129 +1,112 @@
 from __future__ import annotations
 
-import sqlite3
+import json
 import threading
 from pathlib import Path
 from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "lumia.db"
+DATA_PATH = BASE_DIR / "lumia.json"
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS coding_daily (
-    date            TEXT PRIMARY KEY,
-    used_seconds    INTEGER NOT NULL DEFAULT 0,
-    delay_used      INTEGER NOT NULL DEFAULT 0,
-    delay_ends_at   TEXT,
-    locked          INTEGER NOT NULL DEFAULT 0,
-    save_grace_used INTEGER NOT NULL DEFAULT 0
-);
+DAY_DEFAULTS: dict[str, Any] = {
+    "used_seconds": 0,
+    "delay_used": 0,
+    "delay_ends_at": None,
+    "locked": 0,
+    "save_grace_used": 0,
+}
 
-CREATE TABLE IF NOT EXISTS delay_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    date        TEXT NOT NULL,
-    ts          TEXT NOT NULL,
-    minutes     INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS ideas (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    kind        TEXT NOT NULL,
-    text        TEXT,
-    audio_path  TEXT,
-    source      TEXT,
-    uploaded    INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS sit_events (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    seated      INTEGER NOT NULL,
-    pressure    REAL
-);
-
-CREATE TABLE IF NOT EXISTS reminders_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts          TEXT NOT NULL,
-    kind        TEXT NOT NULL,
-    message     TEXT
-);
-"""
+TABLES = ("delay_log", "ideas", "sit_events", "reminders_log")
 
 
 class Database:
-    def __init__(self, path: Path = DB_PATH) -> None:
+    def __init__(self, path: Path = DATA_PATH) -> None:
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        with self._lock:
-            self._conn.executescript(SCHEMA)
-            self._conn.commit()
+        self._path = path
+        self._data: dict[str, Any] = {
+            "coding_daily": {},
+            "seq": {},
+            **{t: [] for t in TABLES},
+        }
+        if path.exists():
             try:
-                self._conn.execute(
-                    "ALTER TABLE coding_daily ADD COLUMN save_grace_used INTEGER NOT NULL DEFAULT 0"
-                )
-                self._conn.commit()
-            except sqlite3.OperationalError:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                for key in self._data:
+                    if key in loaded:
+                        self._data[key] = loaded[key]
+            except (json.JSONDecodeError, OSError):
                 pass
 
-    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        with self._lock:
-            cur = self._conn.execute(sql, params)
-            self._conn.commit()
-            return cur
+    def _save(self) -> None:
+        tmp = self._path.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps(self._data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        tmp.replace(self._path)
 
-    def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        with self._lock:
-            return list(self._conn.execute(sql, params).fetchall())
+    def _next_id(self, table: str) -> int:
+        seq = self._data.setdefault("seq", {})
+        seq[table] = int(seq.get(table, 0)) + 1
+        return seq[table]
 
-    def query_one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
+    def append(self, table: str, record: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
-            return self._conn.execute(sql, params).fetchone()
+            row = {"id": self._next_id(table), **record}
+            self._data[table].append(row)
+            self._save()
+            return row
+
+    def list_rows(self, table: str, limit: int | None = None) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = [dict(r) for r in reversed(self._data[table])]
+            return rows[:limit] if limit else rows
 
     def get_day(self, date: str) -> dict[str, Any]:
-        row = self.query_one("SELECT * FROM coding_daily WHERE date = ?", (date,))
-        if row is None:
-            self.execute("INSERT INTO coding_daily (date) VALUES (?)", (date,))
-            row = self.query_one("SELECT * FROM coding_daily WHERE date = ?", (date,))
-        return dict(row)
+        with self._lock:
+            day = self._data["coding_daily"].get(date)
+            if day is None:
+                day = {"date": date, **DAY_DEFAULTS}
+                self._data["coding_daily"][date] = day
+                self._save()
+            return dict(day)
 
     def set_day(self, date: str, **fields: Any) -> None:
         if not fields:
             return
-        cols = ", ".join(f"{k} = ?" for k in fields)
-        self.execute(
-            f"UPDATE coding_daily SET {cols} WHERE date = ?",
-            (*fields.values(), date),
-        )
+        with self._lock:
+            self.get_day(date)
+            self._data["coding_daily"][date].update(fields)
+            self._save()
 
     def add_used_seconds(self, date: str, delta: int) -> None:
-        self.get_day(date)
-        self.execute(
-            "UPDATE coding_daily SET used_seconds = used_seconds + ? WHERE date = ?",
-            (delta, date),
-        )
+        with self._lock:
+            self.get_day(date)
+            self._data["coding_daily"][date]["used_seconds"] += delta
+            self._save()
 
     def log_delay(self, date: str, ts: str, minutes: int) -> None:
-        self.execute(
-            "INSERT INTO delay_log (date, ts, minutes) VALUES (?, ?, ?)",
-            (date, ts, minutes),
-        )
+        self.append("delay_log", {"date": date, "ts": ts, "minutes": minutes})
 
     def clear_delay_log(self, date: str) -> None:
-        self.execute("DELETE FROM delay_log WHERE date = ?", (date,))
+        with self._lock:
+            self._data["delay_log"] = [
+                r for r in self._data["delay_log"] if r["date"] != date
+            ]
+            self._save()
 
     def clear_coding_history(self) -> None:
-        self.execute("DELETE FROM delay_log")
-        self.execute("DELETE FROM coding_daily")
+        with self._lock:
+            self._data["delay_log"] = []
+            self._data["coding_daily"] = {}
+            self._save()
 
     def last_delay_date(self) -> str | None:
-        row = self.query_one("SELECT MAX(date) AS d FROM delay_log")
-        return row["d"] if row and row["d"] else None
+        with self._lock:
+            dates = [r["date"] for r in self._data["delay_log"]]
+            return max(dates) if dates else None
 
     def delay_dates_between(self, start: str, end: str) -> list[str]:
-        rows = self.query(
-            "SELECT DISTINCT date FROM delay_log WHERE date >= ? AND date <= ?",
-            (start, end),
-        )
-        return [r["date"] for r in rows]
+        with self._lock:
+            return sorted(
+                {r["date"] for r in self._data["delay_log"] if start <= r["date"] <= end}
+            )
