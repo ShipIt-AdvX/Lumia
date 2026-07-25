@@ -41,6 +41,10 @@
           <div class="dev-grid" id="data"></div>
           <div class="dev-tip" id="dataResult"></div>
         </div>
+        <div class="dev-group">
+          <h3>桌宠管理</h3>
+          <div class="dev-grid" id="petCtls"></div>
+        </div>
         <div class="dev-tip">点一下即刻弹出，方便测试喵~</div>
       </div>
     </div>
@@ -127,6 +131,17 @@
       const r = await window.lumia.postJSON('/api/dev/reset-history', {});
       return (r && r.ok) ? '历史已清空 ✓' : ('返回：' + JSON.stringify(r));
     });
+
+    const petEl = document.getElementById('petCtls');
+    makeBtn(petEl, '显示 / 隐藏桌宠', () => window.lumia.dev.petCmd('toggle'));
+    makeBtn(petEl, '待机', () => window.lumia.dev.petCmd('idle'));
+    makeBtn(petEl, '微笑', () => window.lumia.dev.petCmd('smile'));
+    makeBtn(petEl, '大笑', () => window.lumia.dev.petCmd('laugh'));
+    makeBtn(petEl, '惊讶', () => window.lumia.dev.petCmd('surprised'));
+    makeBtn(petEl, '激动', () => window.lumia.dev.petCmd('excited'));
+    makeBtn(petEl, '发呆', () => window.lumia.dev.petCmd('unamused'));
+    makeBtn(petEl, '招牌动作', () => window.lumia.dev.petCmd('signature'));
+    makeBtn(petEl, '去散步', () => window.lumia.dev.petCmd('walk'));
   </script>
 </body>
 </html>
