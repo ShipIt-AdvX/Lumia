@@ -1,4 +1,3 @@
-"""灵感捕获存储: 接收 T5AI-Core (经 Orange Pi 3B 转发) 或手动录入的灵感. 文本直接入库, 音频落盘后引用路径."""
 from __future__ import annotations
 
 import uuid

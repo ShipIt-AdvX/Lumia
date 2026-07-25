@@ -1,9 +1,3 @@
-"""开发时长限制引擎.
-
-额度 = n + k*m 小时 (n 固定额度, k 睡眠转化系数, m 睡眠时长).
-额度用尽后可用一次延时 (两天内仅一次), 延时结束当天硬锁定.
-本周之前每用一次延时, k 打一次八折 (k_eff = k * 0.8**次数), 每周一重置.
-"""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -19,7 +13,7 @@ def _today() -> str:
 
 
 def _week_start(d: date) -> date:
-    return d - timedelta(days=d.weekday())  # 周一作为一周起点
+    return d - timedelta(days=d.weekday())
 
 
 class CodingTracker:
@@ -31,7 +25,6 @@ class CodingTracker:
         self._active_date = _today()
 
     def _penalty_exponent(self, today: date) -> int:
-        """本周内、今天之前用过延时的不同天数."""
         start = _week_start(today)
         yesterday = today - timedelta(days=1)
         if yesterday < start:
@@ -61,7 +54,7 @@ class CodingTracker:
         if last is None:
             return True
         gap = (date.today() - date.fromisoformat(last)).days
-        return gap >= 2  # 两天内只允许一次延时
+        return gap >= 2
 
     def tick(self, coding_now: bool, dt: int = 1) -> None:
         today = _today()
@@ -120,7 +113,7 @@ class CodingTracker:
         elif used >= allowed:
             state = "limit_reached" if self.delay_available(day) else "day_locked"
         else:
-            from . import activity  # 局部导入, 用不到时省开销
+            from . import activity
 
             coding_now = activity.is_coding(
                 self._cfg.get("coding", "dev_processes", default=[]),
@@ -128,7 +121,6 @@ class CodingTracker:
             )
             state = "coding" if coding_now else "idle"
 
-        # 落库硬锁, 重启后当天仍保持锁定
         if state == "day_locked" and not day["locked"]:
             self._db.set_day(today.isoformat(), locked=1)
 
@@ -172,3 +164,19 @@ class CodingTracker:
             f"最后 {minutes} 分钟，用完今天就真的下班了。",
         )
         return {"ok": True, "ends_at": ends_at, "minutes": minutes}
+
+    def reset_today(self) -> dict[str, Any]:
+        today = _today()
+        self._db.get_day(today)
+        self._db.set_day(today, used_seconds=0, delay_used=0, delay_ends_at=None, locked=0)
+        self._db.clear_delay_log(today)
+        self._state = "idle"
+        self._active_date = today
+        return {"ok": True, "date": today}
+
+    def reset_history(self) -> dict[str, Any]:
+        self._db.clear_coding_history()
+        self._state = "idle"
+        self._active_date = _today()
+        self._db.get_day(self._active_date)
+        return {"ok": True}

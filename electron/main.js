@@ -13,6 +13,7 @@ let tray = null;
 let backendProc = null;
 let lastEventId = 0;
 let popupSeq = 0;
+let delayWidget = null;
 
 const floats = [];
 const floatState = new Map();
@@ -53,8 +54,9 @@ function targetX(width) {
   const wa = workArea();
   return wa.x + wa.width - FLOAT.marginRight - width;
 }
-function retractedX() {
+function retractedX(st) {
   const wa = workArea();
+  if (st.side === 'left') return wa.x + FLOAT.handleWidth - st.width;
   return wa.x + wa.width - FLOAT.handleWidth;
 }
 const TITLE_H = FLOAT.titleHeight || 40;
@@ -62,7 +64,9 @@ function effHeight(st) {
   return st.collapsed ? TITLE_H : st.height;
 }
 function floatX(st) {
-  return st.retracted ? retractedX() : targetX(st.width);
+  if (st.retracted) return retractedX(st);
+  if (st.side === 'left') return workArea().x + FLOAT.marginRight;
+  return targetX(st.width);
 }
 function slotY(index) {
   const wa = workArea();
@@ -256,7 +260,8 @@ function closeFloat(win) {
   if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; }
   const wa = workArea();
   const b = win.getBounds();
-  animateBounds(win, { x: wa.x + wa.width, y: b.y, width: b.width, height: b.height }, FLOAT.animMs, () => {
+  const exitX = st.side === 'left' ? wa.x - b.width : wa.x + wa.width;
+  animateBounds(win, { x: exitX, y: b.y, width: b.width, height: b.height }, FLOAT.animMs, () => {
     if (!win.isDestroyed()) win.close();
   });
 }
@@ -283,6 +288,89 @@ function enqueuePopup(event) {
   });
 }
 
+function openDelayWidget(endsAt, minutes) {
+  if (delayWidget && !delayWidget.isDestroyed()) { delayWidget.moveTop(); return; }
+  const width = CFG.popup.width, height = CFG.popup.height;
+  const win = new BrowserWindow({
+    width, height,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      additionalArguments: ['--lumia-base=' + BASE, '--lumia-title=延时'],
+    },
+  });
+  delayWidget = win;
+  const st = {
+    win, key: 'delay-widget', width, height,
+    isFullscreen: false, collapsed: false,
+    retracted: false, hovering: false, retractTimer: null,
+    detached: false, dragTimer: null,
+    animTimer: null, slotYCache: 0,
+    noRetract: false, side: 'left',
+  };
+  floatState.set(win.id, st);
+  win.setAlwaysOnTop(true, 'floating');
+  win.loadFile(path.join(__dirname, 'delay.html'));
+
+  const sendCard = (title, message) => {
+    if (!win.isDestroyed()) win.webContents.send('show-event', { type: 'delay_widget', title, message, actions: [] });
+  };
+  const fmtRemaining = () => {
+    const left = Math.max(0, Math.round((new Date(endsAt) - Date.now()) / 1000));
+    const mm = String(Math.floor(left / 60)).padStart(2, '0');
+    const ss = String(left % 60).padStart(2, '0');
+    return { left, text: mm + ':' + ss };
+  };
+  const phaseTimers = [];
+  let tickTimer = null;
+
+  win.once('ready-to-show', () => {
+    const wa = workArea();
+    const cx = wa.x + Math.round((wa.width - width) / 2);
+    const cy = wa.y + Math.round((wa.height - height) / 2);
+    st.slotYCache = cy;
+    sendCard('延时已开启', `最后 ${minutes} 分钟，用完今天就真的下班了。`);
+    win.setBounds({ x: wa.x + wa.width, y: cy, width, height });
+    win.showInactive();
+    animateBounds(win, { x: cx, y: cy, width, height }, FLOAT.animMs);
+
+    phaseTimers.push(setTimeout(() => {
+      const r = fmtRemaining();
+      sendCard('延时剩余', r.text);
+      tickTimer = setInterval(() => {
+        const t = fmtRemaining();
+        sendCard('延时剩余', t.text);
+        if (t.left <= 0) { clearInterval(tickTimer); tickTimer = null; closeFloat(win); }
+      }, 1000);
+    }, 2000));
+
+    phaseTimers.push(setTimeout(() => {
+      animateBounds(win, { x: floatX(st), y: cy, width, height }, FLOAT.animMs);
+      scheduleRetract(win);
+    }, 4000));
+  });
+
+  win.on('closed', () => {
+    phaseTimers.forEach(clearTimeout);
+    if (tickTimer) clearInterval(tickTimer);
+    if (st.animTimer) clearInterval(st.animTimer);
+    if (st.retractTimer) clearTimeout(st.retractTimer);
+    floatState.delete(win.id);
+    if (delayWidget === win) delayWidget = null;
+  });
+}
+
 async function initLastEventId() {
   try { lastEventId = (await api('/api/state')).latest_event_id || 0; } catch (_) {}
 }
@@ -291,6 +379,7 @@ async function pollEvents() {
     const data = await api('/api/events/poll?after=' + lastEventId);
     for (const event of data.events || []) {
       lastEventId = Math.max(lastEventId, event.id);
+      if (event.type === 'coding_delay_started' && delayWidget && !delayWidget.isDestroyed()) continue;
       enqueuePopup(event);
     }
   } catch (_) {}
@@ -298,8 +387,33 @@ async function pollEvents() {
 
 async function requestDelay() {
   try {
+    const s = await api('/api/state');
+    const d = (s.coding && s.coding.delay) || {};
+    if (d.available) {
+      enqueuePopup({
+        type: 'delay_confirm', title: '开启延时？',
+        message: `本次开发时间将延长 ${d.minutes} 分钟，到时后无法再继续开发. 确定开启吗?`,
+        actions: [{ id: 'delay-confirm', label: '开启延时' }],
+        dismissLabel: '再想想',
+      });
+    } else {
+      enqueuePopup({
+        type: 'delay_feedback', title: '延时不可用',
+        message: d.used_today ? '今天已经用过延时了' : '两天内只能使用一次延时', actions: [],
+      });
+    }
+  } catch (_) {
+    enqueuePopup({
+      type: 'delay_feedback', title: '延时失败',
+      message: '后端未连接', actions: [],
+    });
+  }
+}
+
+async function confirmDelay() {
+  try {
     const r = await api('/api/coding/delay', { method: 'POST' });
-    if (r && r.ok) { await pollEvents(); }
+    if (r && r.ok) { openDelayWidget(r.ends_at, r.minutes); }
     else {
       enqueuePopup({
         type: 'delay_feedback', title: '延时失败',
@@ -319,6 +433,7 @@ ipcMain.on('popup-action', async (evt, payload) => {
   const w = BrowserWindow.fromWebContents(evt.sender);
   if (w && floatState.has(w.id)) closeFloat(w);
   if (id === 'delay') { await requestDelay(); }
+  else if (id === 'delay-confirm') { await confirmDelay(); }
   else if (id === 'achievements') { openAchievements(); }
 });
 ipcMain.on('popup-dismiss', (evt) => {
@@ -384,7 +499,7 @@ ipcMain.on('float-collapse-toggle', (e) => {
   }
   reflow(true);
 });
-ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (floatState.has(w.id)) closeFloat(w); else w.close(); });
+ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (delayWidget && w === delayWidget) return; if (floatState.has(w.id)) closeFloat(w); else w.close(); });
 ipcMain.on('win-toggle-fullscreen', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   if (w && floatState.has(w.id)) toggleFullscreen(w);

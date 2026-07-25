@@ -1,4 +1,3 @@
-"""SQLite 持久化: 单连接 + 锁, 存每日开发用时、延时记录、灵感、久坐与提醒日志."""
 from __future__ import annotations
 
 import sqlite3
@@ -15,7 +14,7 @@ CREATE TABLE IF NOT EXISTS coding_daily (
     used_seconds    INTEGER NOT NULL DEFAULT 0,
     delay_used      INTEGER NOT NULL DEFAULT 0,
     delay_ends_at   TEXT,
-    locked          INTEGER NOT NULL DEFAULT 0    -- 当天硬锁定标记
+    locked          INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS delay_log (
@@ -28,10 +27,10 @@ CREATE TABLE IF NOT EXISTS delay_log (
 CREATE TABLE IF NOT EXISTS ideas (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          TEXT NOT NULL,
-    kind        TEXT NOT NULL,          -- 取值 text 或 audio
+    kind        TEXT NOT NULL,
     text        TEXT,
     audio_path  TEXT,
-    source      TEXT,                   -- 来源, 如 t5ai / orangepi / manual
+    source      TEXT,
     uploaded    INTEGER NOT NULL DEFAULT 1
 );
 
@@ -79,7 +78,7 @@ class Database:
         if row is None:
             self.execute("INSERT INTO coding_daily (date) VALUES (?)", (date,))
             row = self.query_one("SELECT * FROM coding_daily WHERE date = ?", (date,))
-        return dict(row)  # type: ignore[arg-type]
+        return dict(row)
 
     def set_day(self, date: str, **fields: Any) -> None:
         if not fields:
@@ -102,6 +101,13 @@ class Database:
             "INSERT INTO delay_log (date, ts, minutes) VALUES (?, ?, ?)",
             (date, ts, minutes),
         )
+
+    def clear_delay_log(self, date: str) -> None:
+        self.execute("DELETE FROM delay_log WHERE date = ?", (date,))
+
+    def clear_coding_history(self) -> None:
+        self.execute("DELETE FROM delay_log")
+        self.execute("DELETE FROM coding_daily")
 
     def last_delay_date(self) -> str | None:
         row = self.query_one("SELECT MAX(date) AS d FROM delay_log")

@@ -1,4 +1,3 @@
-"""本地测试用: 模拟 Lumia 硬件端点 (无需真实设备). 用法见各子命令 -h."""
 from __future__ import annotations
 
 import argparse

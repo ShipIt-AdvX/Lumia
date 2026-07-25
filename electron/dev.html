@@ -36,6 +36,11 @@
           <h3>窗口 / 状态</h3>
           <div class="dev-grid" id="windows"></div>
         </div>
+        <div class="dev-group">
+          <h3>数据</h3>
+          <div class="dev-grid" id="data"></div>
+          <div class="dev-tip" id="dataResult"></div>
+        </div>
         <div class="dev-tip">点一下即刻弹出，方便测试喵~</div>
       </div>
     </div>
@@ -82,6 +87,46 @@
       type: 'status', title: 'Lumia 今日状态', message: '已开发 42 / 120 分钟 · 状态 running',
       actions: [{ id: 'achievements', label: '成就墙' }],
     }));
+
+    const dataEl = document.getElementById('data');
+    const dataResult = document.getElementById('dataResult');
+    function makeDangerBtn(parent, label, tip, run) {
+      let armed = false;
+      let timer = null;
+      makeBtn(parent, label, async (e) => {
+        const btn = e.currentTarget;
+        if (!armed) {
+          armed = true;
+          btn.textContent = '再点一次确认';
+          dataResult.textContent = tip;
+          timer = setTimeout(() => {
+            armed = false;
+            btn.textContent = label;
+            dataResult.textContent = '';
+          }, 3000);
+          return;
+        }
+        clearTimeout(timer);
+        armed = false;
+        btn.textContent = label;
+        btn.disabled = true;
+        dataResult.textContent = '执行中…';
+        try {
+          dataResult.textContent = await run();
+        } catch (_) {
+          dataResult.textContent = '失败：后端未连接';
+        }
+        btn.disabled = false;
+      });
+    }
+    makeDangerBtn(dataEl, '重置今日数据', '将清零今日开发时长、延时与锁定', async () => {
+      const r = await window.lumia.postJSON('/api/dev/reset', {});
+      return (r && r.ok) ? ('已重置 ' + r.date + ' ✓') : ('返回：' + JSON.stringify(r));
+    });
+    makeDangerBtn(dataEl, '清空历史数据', '将删除所有天的开发时长与延时记录（想法不受影响）', async () => {
+      const r = await window.lumia.postJSON('/api/dev/reset-history', {});
+      return (r && r.ok) ? '历史已清空 ✓' : ('返回：' + JSON.stringify(r));
+    });
   </script>
 </body>
 </html>

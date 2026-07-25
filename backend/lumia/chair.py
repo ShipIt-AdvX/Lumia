@@ -1,4 +1,3 @@
-"""椅子继电器联动: 久坐提醒时让椅子进入拉伸模式. simulate 只记日志; relay 通过 ESP32 的 /stretch 发脉冲."""
 from __future__ import annotations
 
 import urllib.request
@@ -18,6 +17,6 @@ def stretch(config: Config, source: str = "sit_nudge") -> dict[str, Any]:
             with urllib.request.urlopen(req, timeout=3) as resp:
                 body = resp.read().decode("utf-8", "replace")
             return {"ok": True, "mode": mode, "source": source, "relay_response": body}
-        except Exception as exc:  # 网络/设备错误不致命
+        except Exception as exc:
             return {"ok": False, "mode": mode, "source": source, "error": str(exc)}
     return {"ok": True, "mode": "simulate", "source": source, "action": "stretch_pulse"}

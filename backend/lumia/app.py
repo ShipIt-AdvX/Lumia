@@ -1,4 +1,3 @@
-"""FastAPI 应用: 路由 + 两个后台循环 (1 秒计时 / 30 秒提醒调度), 本地 HTTP 供 Electron 调用."""
 from __future__ import annotations
 
 import asyncio
@@ -45,7 +44,7 @@ async def _coding_loop() -> None:
                 float(config.get("coding", "idle_threshold_seconds", default=60)),
             )
             tracker.tick(coding_now, dt=1)
-        except Exception:  # 后台循环永不因异常退出
+        except Exception:
             pass
         await asyncio.sleep(1)
 
@@ -72,7 +71,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Lumia Local Brain", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 仅本地使用
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -95,6 +94,16 @@ def state() -> dict[str, Any]:
 @app.post("/api/coding/delay")
 def coding_delay() -> dict[str, Any]:
     return tracker.request_delay()
+
+
+@app.post("/api/dev/reset")
+def dev_reset() -> dict[str, Any]:
+    return tracker.reset_today()
+
+
+@app.post("/api/dev/reset-history")
+def dev_reset_history() -> dict[str, Any]:
+    return tracker.reset_history()
 
 
 @app.get("/api/events/poll")

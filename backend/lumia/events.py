@@ -1,4 +1,3 @@
-"""内存事件总线: 后台循环推事件, 前端轮询 /api/events/poll?after=<id> 取增量. 事件按 id 单调递增, 便于断点续拉."""
 from __future__ import annotations
 
 import threading

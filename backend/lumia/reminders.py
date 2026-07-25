@@ -1,8 +1,3 @@
-"""提醒调度 + 久坐检测.
-
-一个低频循环 (约 30 秒一次) 驱动: 闹钟提醒 (睡觉/吃饭, 每天一次)、
-间隔提醒 (喝水/活动, 每 N 分钟)、以及基于座压传感器的久坐提醒.
-"""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -19,13 +14,11 @@ class Reminders:
         self._cfg = config
         self._db = db
         self._bus = bus
-        # 久坐状态
         self.seated: bool = False
         self.seated_since: datetime | None = None
         self.last_pressure: float | None = None
         self._last_sedentary_nudge: datetime | None = None
-        # 触发记账
-        self._fired_clock: set[str] = set()  # 去重键: date|kind|HH:MM
+        self._fired_clock: set[str] = set()
         self._fired_day: str = date.today().isoformat()
         self._last_water: datetime = datetime.now()
         self._last_move: datetime = datetime.now()
@@ -60,7 +53,7 @@ class Reminders:
     def tick(self) -> None:
         now = datetime.now()
         today = now.date().isoformat()
-        if today != self._fired_day:  # 跨天则重置当日闹钟去重集
+        if today != self._fired_day:
             self._fired_clock.clear()
             self._fired_day = today
 
@@ -83,7 +76,6 @@ class Reminders:
                 continue
             target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             key = f"{self._fired_day}|{kind}|{hhmm}"
-            # 目标时刻后 2 分钟内触发, 每天只一次
             if key not in self._fired_clock and target <= now < target + timedelta(minutes=2):
                 self._fired_clock.add(key)
                 self._emit(kind, title, message)

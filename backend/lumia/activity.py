@@ -1,7 +1,3 @@
-"""前台程序 + 空闲检测: 判断当前这一秒是否算作 "编程".
-
-仅 Windows 用 ctypes 实现; 其他平台返回 None / 0, 时间不计入.
-"""
 from __future__ import annotations
 
 import sys
@@ -53,7 +49,7 @@ if _IS_WINDOWS:
         millis = _kernel32.GetTickCount() - info.dwTime
         return max(0.0, millis / 1000.0)
 
-else:  # pragma: no cover - 非 Windows 兜底
+else:
 
     def foreground_process() -> str | None:
         return None
@@ -63,7 +59,6 @@ else:  # pragma: no cover - 非 Windows 兜底
 
 
 def is_coding(dev_processes: list[str], idle_threshold: float) -> bool:
-    """前台是开发程序、且用户没空闲, 才算在编程."""
     proc = foreground_process()
     if proc is None:
         return False

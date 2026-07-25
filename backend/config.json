@@ -4,9 +4,9 @@
     "port": 8787
   },
   "coding": {
-    "daily_fixed_hours": 4.0,
-    "conversion_k": 0.5,
-    "sleep_hours": 7.0,
+    "daily_fixed_hours": 4,
+    "conversion_k": 0.7,
+    "sleep_hours": 7,
     "delay_minutes": 60,
     "idle_threshold_seconds": 60,
     "dev_processes": [
@@ -30,10 +30,11 @@
     ]
   },
   "reminders": {
-    "sleep_time": "01:30",
+    "sleep_time": "00:00",
     "meals": [
       "12:00",
-      "19:00"
+      "19:00",
+      "03:48"
     ],
     "water_interval_min": 60,
     "move_interval_min": 45
@@ -43,10 +44,12 @@
     "renudge_minutes": 20
   },
   "chair": {
-    "mode": "simulate",
+    "mode": "relay",
     "relay_url": "http://192.168.1.50:8790/stretch"
   },
   "git": {
-    "repos": []
+    "repos": [
+      "C:\\Users\\Administrator\\Desktop\\projects\\Lumia"
+    ]
   }
 }

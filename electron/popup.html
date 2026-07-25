@@ -54,7 +54,7 @@
         actionsEl.appendChild(btn);
       });
       const dismiss = document.createElement('button');
-      dismiss.textContent = '确定';
+      dismiss.textContent = event.dismissLabel || '确定';
       dismiss.addEventListener('click', () => window.lumia.dismiss());
       actionsEl.appendChild(dismiss);
     });
