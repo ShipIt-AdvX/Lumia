@@ -9,3 +9,11 @@ build/
 .vscode/
 *.*~
 *.pyc
+__pycache__/
+.env
+backend/.env
+backend/data/
+firmware/**/config.h
+firmware/**/.pio/
+node_modules/backend/lumia.db
+data/

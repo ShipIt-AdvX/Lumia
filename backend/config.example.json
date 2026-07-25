@@ -1,6 +1,6 @@
 {
   "server": {
-    "host": "127.0.0.1",
+    "host": "0.0.0.0",
     "port": 8787
   },
   "coding": {
@@ -42,6 +42,13 @@
   "chair": {
     "mode": "simulate",
     "relay_url": "http://192.168.1.50:8790/stretch"
+  },
+  "asr": {
+    "mode": "xfyun",
+    "local_model": "base",
+    "xfyun_app_id": "",
+    "xfyun_api_key": "",
+    "xfyun_api_secret": ""
   },
   "git": {
     "repos": []

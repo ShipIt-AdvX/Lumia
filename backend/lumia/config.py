@@ -52,6 +52,11 @@ class Config:
             self.save()
             return deepcopy(self._data)
 
+    def merge_runtime(self, patch: dict[str, Any]) -> None:
+        """合并配置但不写盘（用于 .env 密钥注入）。"""
+        with self._lock:
+            _deep_merge(self._data, patch)
+
 
 def _deep_merge(dst: dict[str, Any], src: dict[str, Any]) -> None:
     for key, value in src.items():
