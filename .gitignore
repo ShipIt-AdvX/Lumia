@@ -9,3 +9,8 @@ build/
 .vscode/
 *.*~
 *.pyc
+__pycache__/
+node_modules/
+*.db
+backend/__pycache__/
+backend/data/

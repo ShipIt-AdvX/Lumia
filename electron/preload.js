@@ -8,6 +8,7 @@ function readArg(prefix) {
 
 const baseUrl = readArg('--lumia-base=') || 'http://127.0.0.1:8787';
 const title = readArg('--lumia-title=') || 'Lumia';
+const isPet = process.argv.includes('--lumia-pet');
 
 contextBridge.exposeInMainWorld('lumia', {
   baseUrl,
@@ -35,6 +36,7 @@ contextBridge.exposeInMainWorld('lumia', {
   dev: {
     emit: (event) => ipcRenderer.send('dev-emit', event),
     open: (key) => ipcRenderer.send('dev-open', key),
+    petCmd: (action) => ipcRenderer.send('dev-pet-cmd', action),
   },
 
   fetchJSON: async (pathname) => {
@@ -58,3 +60,12 @@ contextBridge.exposeInMainWorld('lumia', {
     return res.json();
   },
 });
+if (isPet) {
+  contextBridge.exposeInMainWorld('electronAPI', {
+    movePet: (x, y) => ipcRenderer.send('pet-move', x, y),
+    petDragStart: () => ipcRenderer.send('pet-drag-start'),
+    petDragEnd: () => ipcRenderer.send('pet-drag-end'),
+    togglePet: () => ipcRenderer.send('pet-toggle'),
+    onPetCmd: (cb) => ipcRenderer.on('pet-cmd', (_e, action) => cb(action)),
+  });
+}

@@ -10,6 +10,8 @@ const FLOAT = CFG.float;
 const FRAME_MS = Math.max(1, Math.round(1000 / (FLOAT.fps || 120)));
 
 let tray = null;
+let petWin = null;
+let petDragTimer = null;
 let backendProc = null;
 let lastEventId = 0;
 let popupSeq = 0;
@@ -271,6 +273,63 @@ function openDevPanel() {
   createFloat({ key: 'dev', file: 'dev.html', width: 300, height: 460, title: 'Lumia · 开发者面板', noRetract: true });
 }
 
+// ---- Desktop Pet ----
+const PET_W = 220, PET_H = 300;
+
+function createPet() {
+  if (petWin && !petWin.isDestroyed()) return petWin;
+  const wa = workArea();
+  petWin = new BrowserWindow({
+    width: PET_W, height: PET_H,
+    x: wa.x + wa.width - PET_W - 50,
+    y: wa.y + wa.height - PET_H,
+    show: false, frame: false, transparent: true,
+    resizable: false, movable: false, minimizable: false, maximizable: false,
+    skipTaskbar: true, alwaysOnTop: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false,
+      backgroundThrottling: false,
+      additionalArguments: ['--lumia-base=' + BASE, '--lumia-pet'],
+    },
+  });
+  petWin.setAlwaysOnTop(true, 'normal');
+  petWin.setVisibleOnAllWorkspaces(true);
+  petWin.loadFile(path.join(__dirname, 'pet.html'));
+  petWin.once('ready-to-show', () => petWin.showInactive());
+  petWin.on('closed', () => { stopPetDrag(); petWin = null; });
+  return petWin;
+}
+
+function startPetDrag() {
+  if (!petWin || petWin.isDestroyed()) return;
+  clearInterval(petDragTimer);
+  const cursorStart = screen.getCursorScreenPoint();
+  const boundsStart = petWin.getBounds();
+  petDragTimer = setInterval(() => {
+    if (petDragTimer === null || !petWin || petWin.isDestroyed()) { clearInterval(petDragTimer); petDragTimer = null; return; }
+    const c = screen.getCursorScreenPoint();
+    petWin.setPosition(
+      boundsStart.x + (c.x - cursorStart.x),
+      boundsStart.y + (c.y - cursorStart.y),
+    );
+  }, FRAME_MS);
+}
+
+function stopPetDrag() {
+  clearInterval(petDragTimer);
+  petDragTimer = null;
+}
+
+function togglePet() {
+  if (petWin && !petWin.isDestroyed()) {
+    petWin.close();
+  } else {
+    createPet();
+  }
+}
+
 function enqueuePopup(event) {
   createFloat({
     key: 'popup-' + (++popupSeq),
@@ -329,6 +388,9 @@ ipcMain.on('dev-emit', (_e, event) => { if (event) enqueuePopup(event); });
 ipcMain.on('dev-open', (_e, key) => {
   if (key === 'settings') openSettings();
   else if (key === 'achievements') openAchievements();
+});
+ipcMain.on('dev-pet-cmd', (_e, action) => {
+  if (petWin && !petWin.isDestroyed()) petWin.webContents.send('pet-cmd', action);
 });
 
 ipcMain.on('float-hover', (e, hovering) => {
@@ -395,6 +457,13 @@ ipcMain.handle('pick-directory', async (e) => {
   return r.canceled ? null : r.filePaths[0];
 });
 
+ipcMain.on('pet-move', (_e, x, y) => {
+  if (petWin && !petWin.isDestroyed()) petWin.setPosition(Math.round(x), Math.round(y));
+});
+ipcMain.on('pet-drag-start', startPetDrag);
+ipcMain.on('pet-drag-end', stopPetDrag);
+ipcMain.on('pet-toggle', () => togglePet());
+
 function buildTray() {
   tray = new Tray(makeTrayIcon());
   tray.setToolTip('Lumia · 不要在我面前猝死');
@@ -405,6 +474,8 @@ function buildTray() {
     { type: 'separator' },
     { label: '设置…', click: openSettings },
     { label: '开发者面板', click: openDevPanel },
+    { type: 'separator' },
+    { label: '显示/隐藏桌宠', click: createPet },
     { type: 'separator' },
     { label: '退出 Lumia', click: () => app.quit() },
   ]);
@@ -430,6 +501,7 @@ async function showStatusPopup() {
 app.whenReady().then(() => {
   maybeSpawnBackend();
   buildTray();
+  createPet();
   initLastEventId().then(() => setInterval(pollEvents, CFG.pollIntervalMs));
 });
 
