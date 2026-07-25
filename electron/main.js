@@ -197,23 +197,43 @@ function toggleFullscreen(win) {
     st.fsRestore = win.getBounds();
     log('float', winTag(win) + ' fullscreen enter');
     if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
+    if (st.animTimer) { clearInterval(st.animTimer); st.animTimer = null; }
     if (st.retracted) { st.retracted = false; win.webContents.send('retracted-changed', false); }
-    animateBounds(win, { x: wa.x, y: wa.y, width: wa.width, height: wa.height }, FLOAT.animMs);
+    const b = st.fsRestore;
+    win.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height });
     win.moveTop();
     win.webContents.send('fullscreen-changed', true);
+    win.webContents.send('fs-zoom', {
+      from: { x: b.x - wa.x, y: b.y - wa.y, width: b.width, height: b.height },
+      ms: FLOAT.animMs,
+    });
   } else {
-    st.isFullscreen = false;
+    if (st.fsExitTimer) return;
     st.collapsed = false;
     log('float', winTag(win) + ' fullscreen exit', { detached: st.detached });
     win.webContents.send('fullscreen-changed', false);
+    let target;
     if (st.detached) {
       const back = st.fsRestore || win.getBounds();
-      animateBounds(win, { x: back.x, y: back.y, width: st.width, height: st.height }, FLOAT.animMs);
+      target = { x: back.x, y: back.y, width: st.width, height: st.height };
     } else {
       collapseSiblings(win);
       reflow(true);
-      scheduleRetract(win);
+      target = { x: floatX(st), y: slotY(floats.indexOf(win)), width: st.width, height: st.height };
+      st.slotYCache = target.y;
     }
+    win.webContents.send('fs-zoom', {
+      to: { x: target.x - wa.x, y: target.y - wa.y, width: target.width, height: target.height },
+      ms: FLOAT.animMs,
+    });
+    st.fsExitTimer = setTimeout(() => {
+      st.fsExitTimer = null;
+      if (win.isDestroyed()) return;
+      if (st.animTimer) { clearInterval(st.animTimer); st.animTimer = null; }
+      win.setBounds(target);
+      st.isFullscreen = false;
+      if (!st.detached) scheduleRetract(win);
+    }, FLOAT.animMs + 30);
   }
 }
 
@@ -282,6 +302,7 @@ function createFloat({ key, file, width, height, title, noRetract, autoHeight, e
     if (st.animTimer) clearInterval(st.animTimer);
     if (st.retractTimer) clearTimeout(st.retractTimer);
     if (st.dragTimer) clearInterval(st.dragTimer);
+    if (st.fsExitTimer) clearTimeout(st.fsExitTimer);
     floatState.delete(win.id);
     reflow(true);
   });

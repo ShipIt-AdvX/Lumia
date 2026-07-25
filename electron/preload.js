@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('lumia', {
       ipcRenderer.on('retracted-changed', (_e, retracted) => cb(retracted)),
     onFullscreenChanged: (cb) =>
       ipcRenderer.on('fullscreen-changed', (_e, isFull) => cb(isFull)),
+    onFsZoom: (cb) =>
+      ipcRenderer.on('fs-zoom', (_e, zoom) => cb(zoom)),
   },
 
   pickDirectory: () => ipcRenderer.invoke('pick-directory'),

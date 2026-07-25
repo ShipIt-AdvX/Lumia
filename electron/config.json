@@ -8,7 +8,7 @@
   },
   "popup": {
     "width": 340,
-    "height": 150,
+    "height": 100,
     "marginRight": 20,
     "marginBottom": 20,
     "autoDismissMs": 12000
@@ -19,7 +19,7 @@
     "gap": 12,
     "handleWidth": 8,
     "titleHeight": 40,
-    "autoRetractMs": 10000,
+    "autoRetractMs": 5000,
     "animMs": 260,
     "fps": 60
   },
