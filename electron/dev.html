@@ -11,6 +11,10 @@
       letter-spacing: 0.4px; }
     .dev-grid { display: flex; flex-direction: column; gap: 6px; }
     .dev-grid .btn { text-align: left; }
+    .dev-row { display: flex; gap: 6px; }
+    .dev-row input { flex: 1; min-width: 0; background: #232230; border: 1px solid #3a3747;
+      color: #f2f0f7; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; outline: none; }
+    .dev-row .btn { flex-shrink: 0; }
     .dev-tip { font-size: 11.5px; color: #6f6b7c; margin-top: 2px; }
   </style>
 </head>
@@ -38,7 +42,12 @@
         </div>
         <div class="dev-group">
           <h3>数据</h3>
-          <div class="dev-grid" id="data"></div>
+          <div class="dev-grid" id="data">
+            <div class="dev-row">
+              <input type="number" id="usedMin" min="0" step="1" placeholder="分钟" />
+              <button class="btn" id="setUsedBtn">设置已开发时长</button>
+            </div>
+          </div>
           <div class="dev-tip" id="dataResult"></div>
         </div>
         <div class="dev-tip">点一下即刻弹出，方便测试喵~</div>
@@ -90,6 +99,21 @@
 
     const dataEl = document.getElementById('data');
     const dataResult = document.getElementById('dataResult');
+    const usedMin = document.getElementById('usedMin');
+    const setUsedBtn = document.getElementById('setUsedBtn');
+    setUsedBtn.addEventListener('click', async () => {
+      const v = parseFloat(usedMin.value);
+      if (!isFinite(v) || v < 0) { dataResult.textContent = '请输入有效的分钟数'; return; }
+      setUsedBtn.disabled = true;
+      dataResult.textContent = '设置中…';
+      try {
+        const r = await window.lumia.postJSON('/api/dev/set-used', { minutes: v });
+        dataResult.textContent = (r && r.ok) ? ('已设置为 ' + v + ' 分钟 ✓') : ('返回：' + JSON.stringify(r));
+      } catch (_) {
+        dataResult.textContent = '失败：后端未连接';
+      }
+      setUsedBtn.disabled = false;
+    });
     function makeDangerBtn(parent, label, tip, run) {
       let armed = false;
       let timer = null;

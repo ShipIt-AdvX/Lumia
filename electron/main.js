@@ -9,10 +9,24 @@ const BASE = CFG.backend.baseUrl;
 const FLOAT = CFG.float;
 const FRAME_MS = Math.max(1, Math.round(1000 / (FLOAT.fps || 120)));
 
+const LOG_FILE = path.join(app.getPath('userData'), 'lumia.log');
+function log(scope, msg, extra) {
+  const line = '[' + new Date().toISOString() + '] [' + scope + '] ' + msg
+    + (extra === undefined ? '' : ' ' + JSON.stringify(extra));
+  console.log(line);
+  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (_) {}
+}
+function winTag(win) {
+  if (!win || win.isDestroyed()) return 'win#gone';
+  const st = floatState.get(win.id);
+  return (st ? st.key : 'win') + '#' + win.id;
+}
+
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('ozone-platform-hint', 'x11');
   app.commandLine.appendSwitch('enable-transparent-visuals');
   app.disableHardwareAcceleration();
+  log('app', 'linux switches applied', { ozone: 'x11', transparentVisuals: true, hwAccel: false });
 }
 
 let tray = null;
@@ -20,6 +34,10 @@ let backendProc = null;
 let lastEventId = 0;
 let popupSeq = 0;
 let delayWidget = null;
+let lockdownWin = null;
+let lockdownTimer = null;
+let lockdownState = null;
+let pollFailing = false;
 
 const floats = [];
 const floatState = new Map();
@@ -44,8 +62,10 @@ function makeTrayIcon() {
 function maybeSpawnBackend() {
   if (!CFG.backend.spawn) return;
   const cwd = path.resolve(__dirname, CFG.backend.cwd);
+  log('backend', 'spawning', { command: CFG.backend.command, args: CFG.backend.args, cwd });
   backendProc = spawn(CFG.backend.command, CFG.backend.args, { cwd, stdio: 'ignore', windowsHide: true });
-  backendProc.on('error', (err) => console.error('backend spawn failed:', err.message));
+  backendProc.on('error', (err) => log('backend', 'spawn failed: ' + err.message));
+  backendProc.on('exit', (code, signal) => log('backend', 'exited', { code, signal }));
 }
 
 async function api(pathname, options) {
@@ -128,6 +148,7 @@ function setRetracted(win, retracted) {
   const st = floatState.get(win.id);
   if (!st || st.isFullscreen || st.closing || st.retracted === retracted) return;
   st.retracted = retracted;
+  log('float', winTag(win) + (retracted ? ' retract' : ' expand'), { side: st.side || 'right' });
   animateBounds(win, { x: floatX(st), y: st.slotYCache, width: st.width, height: effHeight(st) }, FLOAT.animMs);
   win.webContents.send('retracted-changed', retracted);
 }
@@ -157,6 +178,7 @@ function detachFloat(win) {
   const st = floatState.get(win.id);
   if (!st || st.detached) return;
   st.detached = true;
+  log('float', winTag(win) + ' detached');
   if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
   if (st.retracted) { st.retracted = false; win.webContents.send('retracted-changed', false); }
   const idx = floats.indexOf(win);
@@ -171,6 +193,7 @@ function toggleFullscreen(win) {
   if (!st.isFullscreen) {
     st.isFullscreen = true;
     st.fsRestore = win.getBounds();
+    log('float', winTag(win) + ' fullscreen enter');
     if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
     if (st.retracted) { st.retracted = false; win.webContents.send('retracted-changed', false); }
     animateBounds(win, { x: wa.x, y: wa.y, width: wa.width, height: wa.height }, FLOAT.animMs);
@@ -179,6 +202,7 @@ function toggleFullscreen(win) {
   } else {
     st.isFullscreen = false;
     st.collapsed = false;
+    log('float', winTag(win) + ' fullscreen exit', { detached: st.detached });
     win.webContents.send('fullscreen-changed', false);
     if (st.detached) {
       const back = st.fsRestore || win.getBounds();
@@ -194,6 +218,7 @@ function toggleFullscreen(win) {
 function createFloat({ key, file, width, height, title, noRetract, event }) {
   const existing = floats.find((w) => floatState.get(w.id).key === key);
   if (existing) {
+    log('float', winTag(existing) + ' reuse existing, activate');
     activateFloat(existing);
     return existing;
   }
@@ -226,6 +251,8 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   };
   floatState.set(win.id, st);
   floats.unshift(win);
+  log('float', winTag(win) + ' created', { file, width, height, noRetract: !!noRetract, eventType: event ? event.type : null });
+  attachWebContentsLog(win);
   win.setAlwaysOnTop(true, 'floating');
   win.loadFile(path.join(__dirname, file));
 
@@ -239,6 +266,7 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   win.once('ready-to-show', () => {
     win.setBounds({ x: wa.x + wa.width, y: slotY(0), width, height });
     win.showInactive();
+    log('float', winTag(win) + ' ready-to-show, shown', win.getBounds());
     if (!st.noRetract) collapseSiblings(win);
     reflow(true);
     win.moveTop();
@@ -246,6 +274,7 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   });
 
   win.on('closed', () => {
+    log('float', st.key + '#' + win.id + ' closed');
     const idx = floats.indexOf(win);
     if (idx >= 0) floats.splice(idx, 1);
     if (st.animTimer) clearInterval(st.animTimer);
@@ -257,11 +286,20 @@ function createFloat({ key, file, width, height, title, noRetract, event }) {
   return win;
 }
 
+function attachWebContentsLog(win) {
+  const tag = () => winTag(win);
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => log('wc', tag() + ' did-fail-load', { code, desc, url }));
+  win.webContents.on('render-process-gone', (_e, details) => log('wc', tag() + ' render-process-gone', details));
+  win.on('unresponsive', () => log('wc', tag() + ' unresponsive'));
+  win.on('responsive', () => log('wc', tag() + ' responsive again'));
+}
+
 function closeFloat(win) {
   const st = floatState.get(win.id);
   if (!st || win.isDestroyed()) { if (win && !win.isDestroyed()) win.close(); return; }
   if (st.closing) return;
   st.closing = true;
+  log('float', winTag(win) + ' closing (slide out)');
   if (st.retractTimer) { clearTimeout(st.retractTimer); st.retractTimer = null; }
   if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; }
   const wa = workArea();
@@ -294,8 +332,93 @@ function enqueuePopup(event) {
   });
 }
 
+function shutdownNow() {
+  log('lockdown', 'executing system shutdown', { platform: process.platform });
+  if (process.platform === 'win32') spawn('shutdown', ['/s', '/t', '0']);
+  else if (process.platform === 'linux') spawn('shutdown', ['-h', 'now']);
+}
+
+function closeLockdown() {
+  if (!lockdownWin && !lockdownTimer) return;
+  log('lockdown', 'closing, shutdown cancelled');
+  if (lockdownTimer) { clearInterval(lockdownTimer); lockdownTimer = null; }
+  lockdownState = null;
+  if (lockdownWin && !lockdownWin.isDestroyed()) lockdownWin.destroy();
+  lockdownWin = null;
+}
+
+async function openLockdown(kind) {
+  if (lockdownWin && !lockdownWin.isDestroyed()) {
+    if (lockdownState && kind === 'locked') { lockdownState.kind = 'locked'; lockdownState.delayAvailable = false; }
+    log('lockdown', 'already open, state escalated', { kind });
+    lockdownWin.moveTop();
+    return;
+  }
+  let delayAvailable = false;
+  let minutes = 0;
+  if (kind === 'limit') {
+    try {
+      const s = await api('/api/state');
+      const d = (s.coding && s.coding.delay) || {};
+      delayAvailable = !!d.available;
+      minutes = d.minutes || 0;
+    } catch (_) {}
+  }
+  const win = new BrowserWindow({
+    fullscreen: true,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    closable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: '#141318',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      additionalArguments: ['--lumia-base=' + BASE, '--lumia-title=开发时长已用尽'],
+    },
+  });
+  lockdownWin = win;
+  lockdownState = { kind, delayAvailable, minutes, remaining: 60 };
+  log('lockdown', 'created win#' + win.id, lockdownState);
+  attachWebContentsLog(win);
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.on('close', (e) => e.preventDefault());
+  win.loadFile(path.join(__dirname, 'lockdown.html'));
+  const sendState = () => {
+    if (win.isDestroyed() || !lockdownState) return;
+    win.webContents.send('show-event', { type: 'lockdown', ...lockdownState });
+  };
+  win.once('ready-to-show', () => {
+    win.show();
+    win.focus();
+    log('lockdown', 'shown, countdown started', { remaining: lockdownState.remaining });
+    sendState();
+    lockdownTimer = setInterval(() => {
+      if (!lockdownState) return;
+      lockdownState.remaining -= 1;
+      sendState();
+      if (lockdownState.remaining <= 0) {
+        clearInterval(lockdownTimer);
+        lockdownTimer = null;
+        log('lockdown', 'countdown reached zero');
+        shutdownNow();
+      }
+    }, 1000);
+  });
+  win.on('closed', () => {
+    log('lockdown', 'win#' + win.id + ' closed');
+    if (lockdownTimer) { clearInterval(lockdownTimer); lockdownTimer = null; }
+    if (lockdownWin === win) { lockdownWin = null; lockdownState = null; }
+  });
+}
+
 function openDelayWidget(endsAt, minutes) {
-  if (delayWidget && !delayWidget.isDestroyed()) { delayWidget.moveTop(); return; }
+  if (delayWidget && !delayWidget.isDestroyed()) { log('delay-widget', 'already open, moveTop'); delayWidget.moveTop(); return; }
   const width = CFG.popup.width, height = CFG.popup.height;
   const win = new BrowserWindow({
     width, height,
@@ -327,6 +450,8 @@ function openDelayWidget(endsAt, minutes) {
   };
   floatState.set(win.id, st);
   win.setAlwaysOnTop(true, 'floating');
+  log('delay-widget', 'created win#' + win.id, { endsAt, minutes });
+  attachWebContentsLog(win);
   win.loadFile(path.join(__dirname, 'delay.html'));
 
   const sendCard = (title, message) => {
@@ -357,7 +482,7 @@ function openDelayWidget(endsAt, minutes) {
       tickTimer = setInterval(() => {
         const t = fmtRemaining();
         sendCard('延时剩余', t.text);
-        if (t.left <= 0) { clearInterval(tickTimer); tickTimer = null; closeFloat(win); }
+        if (t.left <= 0) { clearInterval(tickTimer); tickTimer = null; log('delay-widget', 'countdown finished, closing'); closeFloat(win); }
       }, 1000);
     }, 2000));
 
@@ -368,6 +493,7 @@ function openDelayWidget(endsAt, minutes) {
   });
 
   win.on('closed', () => {
+    log('delay-widget', 'win#' + win.id + ' closed');
     phaseTimers.forEach(clearTimeout);
     if (tickTimer) clearInterval(tickTimer);
     if (st.animTimer) clearInterval(st.animTimer);
@@ -383,12 +509,18 @@ async function initLastEventId() {
 async function pollEvents() {
   try {
     const data = await api('/api/events/poll?after=' + lastEventId);
+    if (pollFailing) { pollFailing = false; log('poll', 'backend reachable again'); }
     for (const event of data.events || []) {
       lastEventId = Math.max(lastEventId, event.id);
-      if (event.type === 'coding_delay_started' && delayWidget && !delayWidget.isDestroyed()) continue;
+      log('poll', 'event received', { id: event.id, type: event.type, title: event.title });
+      if (event.type === 'coding_delay_started' && delayWidget && !delayWidget.isDestroyed()) { log('poll', 'skip coding_delay_started, delay widget alive'); continue; }
+      if (event.type === 'coding_limit') { await openLockdown('limit'); continue; }
+      if (event.type === 'coding_locked') { await openLockdown('locked'); continue; }
       enqueuePopup(event);
     }
-  } catch (_) {}
+  } catch (err) {
+    if (!pollFailing) { pollFailing = true; log('poll', 'backend unreachable: ' + err.message); }
+  }
 }
 
 async function requestDelay() {
@@ -437,6 +569,7 @@ async function confirmDelay() {
 ipcMain.on('popup-action', async (evt, payload) => {
   const id = payload && payload.id;
   const w = BrowserWindow.fromWebContents(evt.sender);
+  log('ipc', 'popup-action from ' + winTag(w), { id });
   if (w && floatState.has(w.id)) closeFloat(w);
   if (id === 'delay') { await requestDelay(); }
   else if (id === 'delay-confirm') { await confirmDelay(); }
@@ -444,10 +577,36 @@ ipcMain.on('popup-action', async (evt, payload) => {
 });
 ipcMain.on('popup-dismiss', (evt) => {
   const w = BrowserWindow.fromWebContents(evt.sender);
+  log('ipc', 'popup-dismiss from ' + winTag(w));
   if (w && floatState.has(w.id)) closeFloat(w);
 });
-ipcMain.on('dev-emit', (_e, event) => { if (event) enqueuePopup(event); });
+ipcMain.on('dev-emit', (_e, event) => {
+  if (!event) return;
+  log('ipc', 'dev-emit', { type: event.type });
+  if (event.type === 'coding_limit') { openLockdown('limit'); return; }
+  if (event.type === 'coding_locked') { openLockdown('locked'); return; }
+  enqueuePopup(event);
+});
+ipcMain.on('lockdown-cancel', () => { log('ipc', 'lockdown-cancel'); closeLockdown(); });
+ipcMain.handle('lockdown-delay', async () => {
+  log('ipc', 'lockdown-delay requested');
+  try {
+    const r = await api('/api/coding/delay', { method: 'POST' });
+    if (r && r.ok) {
+      log('lockdown', 'delay granted', { minutes: r.minutes, endsAt: r.ends_at });
+      closeLockdown();
+      openDelayWidget(r.ends_at, r.minutes);
+      return { ok: true };
+    }
+    log('lockdown', 'delay rejected', { reason: r && r.reason });
+    return { ok: false, reason: (r && r.reason) || '后端拒绝了这次延时请求' };
+  } catch (_) {
+    log('lockdown', 'delay failed: backend unreachable');
+    return { ok: false, reason: '后端未连接' };
+  }
+});
 ipcMain.on('dev-open', (_e, key) => {
+  log('ipc', 'dev-open', { key });
   if (key === 'settings') openSettings();
   else if (key === 'achievements') openAchievements();
 });
@@ -469,6 +628,7 @@ ipcMain.on('float-drag-start', (e) => {
   if (!w || !floatState.has(w.id)) return;
   const st = floatState.get(w.id);
   if (st.isFullscreen || st.closing) return;
+  log('ipc', 'float-drag-start ' + winTag(w));
   detachFloat(w);
   if (st.animTimer) { clearInterval(st.animTimer); st.animTimer = null; }
   if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; }
@@ -484,13 +644,14 @@ ipcMain.on('float-drag-end', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   if (!w || !floatState.has(w.id)) return;
   const st = floatState.get(w.id);
-  if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; }
+  if (st.dragTimer) { clearInterval(st.dragTimer); st.dragTimer = null; log('ipc', 'float-drag-end ' + winTag(w), w.getBounds()); }
 });
 ipcMain.on('float-collapse-toggle', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
   if (!w || !floatState.has(w.id)) return;
   const st = floatState.get(w.id);
   if (st.noRetract || st.isFullscreen || st.closing) return;
+  log('ipc', 'float-collapse-toggle ' + winTag(w), { collapsed: st.collapsed, detached: st.detached });
   if (st.detached) {
     st.collapsed = !st.collapsed;
     const b = w.getBounds();
@@ -505,9 +666,10 @@ ipcMain.on('float-collapse-toggle', (e) => {
   }
   reflow(true);
 });
-ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (delayWidget && w === delayWidget) return; if (floatState.has(w.id)) closeFloat(w); else w.close(); });
+ipcMain.on('win-close', (e) => { const w = BrowserWindow.fromWebContents(e.sender); if (!w) return; if (delayWidget && w === delayWidget) { log('ipc', 'win-close blocked for delay widget'); return; } log('ipc', 'win-close ' + winTag(w)); if (floatState.has(w.id)) closeFloat(w); else w.close(); });
 ipcMain.on('win-toggle-fullscreen', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender);
+  log('ipc', 'win-toggle-fullscreen ' + winTag(w));
   if (w && floatState.has(w.id)) toggleFullscreen(w);
 });
 ipcMain.handle('pick-directory', async (e) => {
@@ -549,10 +711,20 @@ async function showStatusPopup() {
 }
 
 app.whenReady().then(() => {
+  log('app', 'ready', {
+    platform: process.platform,
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    logFile: LOG_FILE,
+  });
   maybeSpawnBackend();
   buildTray();
   initLastEventId().then(() => setInterval(pollEvents, CFG.pollIntervalMs));
 });
 
 app.on('window-all-closed', () => {});
-app.on('before-quit', () => { if (backendProc && !backendProc.killed) { try { backendProc.kill(); } catch (_) {} } });
+app.on('before-quit', () => {
+  log('app', 'before-quit');
+  closeLockdown();
+  if (backendProc && !backendProc.killed) { try { backendProc.kill(); } catch (_) {} }
+});

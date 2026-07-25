@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <style>
+    html, body { margin: 0; height: 100%; background: #141318; overflow: hidden;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif; -webkit-user-select: none; cursor: default; }
+    .wrap { height: 100%; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; color: #f2f0f7; }
+    .title { font-size: 36px; font-weight: 700; color: #f5b7ad; }
+    .msg { font-size: 16px; color: #d8d4e0; }
+    .count { font-size: 110px; font-weight: 700; letter-spacing: 4px; line-height: 1.1; }
+    .count.warn { color: #e0887a; }
+    .count.done { font-size: 44px; }
+    .hint { font-size: 14px; color: #8a8697; }
+    .btn { margin-top: 12px; padding: 12px 32px; font-size: 16px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #e0887a, #b56a75); color: #fff; cursor: pointer; }
+    .btn:disabled { opacity: 0.45; pointer-events: none; }
+    .btn.ghost { background: transparent; border: 1px solid #4a4655; color: #8a8697; font-size: 13px;
+      padding: 8px 20px; margin-top: 4px; }
+    .err { font-size: 13px; color: #e0887a; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title" id="title"></div>
+    <div class="msg" id="msg"></div>
+    <div class="count" id="count"></div>
+    <div class="hint" id="hint"></div>
+    <button class="btn" id="delayBtn" hidden></button>
+    <button class="btn ghost" id="cancelBtn">取消本次关机</button>
+    <div class="err" id="err"></div>
+  </div>
+  <script>
+    const titleEl = document.getElementById('title');
+    const msgEl = document.getElementById('msg');
+    const countEl = document.getElementById('count');
+    const hintEl = document.getElementById('hint');
+    const delayBtn = document.getElementById('delayBtn');
+    const errEl = document.getElementById('err');
+
+    window.lumia.onEvent((ev) => {
+      if (ev.type !== 'lockdown') return;
+      if (ev.kind === 'limit') {
+        titleEl.textContent = '今日开发时长已用尽';
+        msgEl.textContent = ev.delayAvailable
+          ? '需要的话可以开启今天唯一的一次延时，否则电脑将自动关机'
+          : '本次无法延时，电脑将自动关机';
+      } else {
+        titleEl.textContent = '今天到此为止';
+        msgEl.textContent = '开发时长（含延时）已结束，电脑将自动关机';
+      }
+      if (ev.delayAvailable) {
+        delayBtn.hidden = false;
+        delayBtn.textContent = '开启延时（' + ev.minutes + ' 分钟）';
+      }
+      if (ev.remaining > 0) {
+        countEl.textContent = ev.remaining;
+        countEl.classList.remove('done');
+        hintEl.textContent = '秒后关机';
+      } else {
+        countEl.textContent = '正在关机…';
+        countEl.classList.add('done');
+        hintEl.textContent = '';
+        delayBtn.hidden = true;
+      }
+      countEl.classList.toggle('warn', ev.remaining > 0 && ev.remaining <= 10);
+    });
+
+    delayBtn.addEventListener('click', async () => {
+      delayBtn.disabled = true;
+      errEl.textContent = '';
+      const r = await window.lumia.lockdown.requestDelay();
+      if (!r || !r.ok) {
+        errEl.textContent = (r && r.reason) || '延时失败';
+        delayBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+      window.lumia.lockdown.cancel();
+    });
+  </script>
+</body>
+</html>

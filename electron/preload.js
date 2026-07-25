@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('lumia', {
 
   pickDirectory: () => ipcRenderer.invoke('pick-directory'),
 
+  lockdown: {
+    requestDelay: () => ipcRenderer.invoke('lockdown-delay'),
+    cancel: () => ipcRenderer.send('lockdown-cancel'),
+  },
+
   dev: {
     emit: (event) => ipcRenderer.send('dev-emit', event),
     open: (key) => ipcRenderer.send('dev-open', key),
