@@ -19,8 +19,9 @@
     .time { font-size: 11px; opacity: 0.5; }
     .commit-detail { display: none; padding: 0 12px 10px; }
     .commit.open .commit-detail { display: block; }
-    .commit-author { display: flex; align-items: center; gap: 8px; font-size: 12px;
+    .commit-authors { display: flex; flex-direction: column; gap: 6px;
       border-top: 1px solid #34313e; padding-top: 8px; margin-bottom: 8px; }
+    .commit-author { display: flex; align-items: center; gap: 8px; font-size: 12px; }
     .avatar { width: 24px; height: 24px; border-radius: 50%; flex: none; }
     .avatar-fallback { width: 24px; height: 24px; border-radius: 50%; flex: none; background: #3a3646;
       color: #cfc9dc; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
@@ -93,14 +94,19 @@
         for (const c of ach.commits || []) {
           const item = document.createElement('div');
           item.className = 'commit';
-          const avatar = c.avatar_url
-            ? `<img class="avatar" src="${esc(c.avatar_url)}" onerror="this.style.display='none'">`
-            : `<span class="avatar-fallback">${esc((c.author || '?').slice(0, 1).toUpperCase())}</span>`;
-          const authorInner = avatar + `<span class="author-name">${esc(c.author)}</span>`;
-          const authorRow = c.author_url
-            ? `<div class="commit-author author-link" data-url="${esc(c.author_url)}">${authorInner} ↗</div>`
-            : `<div class="commit-author">${authorInner}</div>`;
-          const detail = authorRow +
+          const contribs = (c.contributors && c.contributors.length)
+            ? c.contributors
+            : [{ name: c.author, url: c.author_url, avatar: c.avatar_url }];
+          const authorRows = contribs.map((p) => {
+            const av = p.avatar
+              ? `<img class="avatar" src="${esc(p.avatar)}" onerror="this.style.display='none'">`
+              : `<span class="avatar-fallback">${esc((p.name || '?').slice(0, 1).toUpperCase())}</span>`;
+            const inner = av + `<span class="author-name">${esc(p.name || '')}</span>`;
+            return p.url
+              ? `<div class="commit-author author-link" data-url="${esc(p.url)}">${inner} ↗</div>`
+              : `<div class="commit-author">${inner}</div>`;
+          }).join('');
+          const detail = `<div class="commit-authors">${authorRows}</div>` +
             (c.body ? `<div class="commit-body">${esc(c.body)}</div>` : '<div class="commit-body">没有更多描述。</div>') +
             (c.url ? `<span class="commit-link" data-url="${esc(c.url)}">在浏览器中打开此 commit ↗</span>` : '');
           item.innerHTML = `<div class="commit-row">` +
