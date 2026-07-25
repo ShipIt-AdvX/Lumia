@@ -92,10 +92,20 @@
     const winEl = document.getElementById('windows');
     makeBtn(winEl, '打开设置', () => window.lumia.dev.open('settings'));
     makeBtn(winEl, '打开成就墙', () => window.lumia.dev.open('achievements'));
-    makeBtn(winEl, '今日状态弹窗', () => window.lumia.dev.emit({
-      type: 'status', title: 'Lumia 今日状态', message: '已开发 42 / 120 分钟 · 状态 running',
-      actions: [{ id: 'achievements', label: '成就墙' }],
-    }));
+    makeBtn(winEl, '今日状态弹窗', async () => {
+      try {
+        const s = await window.lumia.fetchJSON('/api/state');
+        const c = s.coding;
+        const mins = (sec) => Math.round((sec || 0) / 60);
+        window.lumia.dev.emit({
+          type: 'status', title: 'Lumia 今日状态',
+          message: `已开发 ${mins(c.used_seconds)} / ${mins(c.allowed_effective_seconds)} 分钟 · 状态 ${c.state}`,
+          actions: [{ id: 'achievements', label: '成就墙' }],
+        });
+      } catch (_) {
+        window.lumia.dev.emit({ type: 'status', title: 'Lumia', message: '后端未连接（:8787）。', actions: [] });
+      }
+    });
 
     const dataEl = document.getElementById('data');
     const dataResult = document.getElementById('dataResult');
