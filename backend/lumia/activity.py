@@ -57,7 +57,7 @@ else:
 
         def _run(cmd: list[str]) -> str | None:
             try:
-                out = subprocess.run(cmd, capture_output=True, text=True, timeout=1)
+                out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1)
             except Exception:
                 return None
             if out.returncode != 0:

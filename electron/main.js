@@ -129,7 +129,7 @@ function animateBounds(win, to, ms, done) {
 function reflow(animate = true) {
   floats.forEach((win, i) => {
     const st = floatState.get(win.id);
-    if (!st || st.isFullscreen || st.closing) return;
+    if (!st || st.isFullscreen || st.closing || !st.entered) return;
     st.slotYCache = slotY(i);
     animateBounds(win, { x: floatX(st), y: st.slotYCache, width: st.width, height: effHeight(st) }, animate ? FLOAT.animMs : 0);
   });
@@ -270,6 +270,7 @@ function createFloat({ key, file, width, height, title, noRetract, autoHeight, e
     detached: false, dragTimer: null,
     animTimer: null, slotYCache: 0,
     noRetract: !!noRetract, autoHeight: !!autoHeight,
+    entered: false, entryTimer: null, shown: false, contentReady: false,
   };
   floatState.set(win.id, st);
   floats.unshift(win);
@@ -285,14 +286,25 @@ function createFloat({ key, file, width, height, title, noRetract, autoHeight, e
   }
 
   const wa = workArea();
-  win.once('ready-to-show', () => {
-    win.setBounds({ x: wa.x + wa.width, y: slotY(0), width, height });
-    win.showInactive();
-    log('float', winTag(win) + ' ready-to-show, shown', win.getBounds());
+  const enterFloat = () => {
+    if (st.entered || !st.shown || win.isDestroyed()) return;
+    st.entered = true;
+    if (st.entryTimer) { clearTimeout(st.entryTimer); st.entryTimer = null; }
+    log('float', winTag(win) + ' enter animation start', { height: st.height });
     if (!st.noRetract) collapseSiblings(win);
     reflow(true);
     win.moveTop();
     scheduleRetract(win);
+  };
+  st.enterFloat = enterFloat;
+  win.once('ready-to-show', () => {
+    if (st.animTimer) { clearInterval(st.animTimer); st.animTimer = null; }
+    win.setBounds({ x: wa.x + wa.width, y: slotY(0), width: st.width, height: st.height });
+    win.showInactive();
+    st.shown = true;
+    log('float', winTag(win) + ' ready-to-show, shown', win.getBounds());
+    if (!st.autoHeight || st.contentReady) enterFloat();
+    else st.entryTimer = setTimeout(enterFloat, 500);
   });
 
   win.on('closed', () => {
@@ -303,6 +315,7 @@ function createFloat({ key, file, width, height, title, noRetract, autoHeight, e
     if (st.retractTimer) clearTimeout(st.retractTimer);
     if (st.dragTimer) clearInterval(st.dragTimer);
     if (st.fsExitTimer) clearTimeout(st.fsExitTimer);
+    if (st.entryTimer) clearTimeout(st.entryTimer);
     floatState.delete(win.id);
     reflow(true);
   });
@@ -769,6 +782,13 @@ ipcMain.on('float-content-height', (e, h) => {
   if (!st.autoHeight || st.isFullscreen || st.closing || st.collapsed) return;
   const wa = workArea();
   const target = Math.max(64, Math.min(Math.round(h) || 0, Math.round(wa.height * 0.6)));
+  if (!st.entered) {
+    if (target !== st.height) st.height = target;
+    st.contentReady = true;
+    log('float', winTag(w) + ' content ready', { height: target, shown: st.shown });
+    if (st.enterFloat) st.enterFloat();
+    return;
+  }
   if (target === st.height) return;
   log('float', winTag(w) + ' content height', { from: st.height, to: target });
   st.height = target;
