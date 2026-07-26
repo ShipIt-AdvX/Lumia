@@ -61,6 +61,24 @@ class Database:
             rows = [dict(r) for r in reversed(self._data[table])]
             return rows[:limit] if limit else rows
 
+    def get_row(self, table: str, row_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            for row in self._data.get(table, []):
+                if int(row.get("id", -1)) == int(row_id):
+                    return dict(row)
+            return None
+
+    def update_row(self, table: str, row_id: int, **fields: Any) -> dict[str, Any] | None:
+        if not fields:
+            return self.get_row(table, row_id)
+        with self._lock:
+            for row in self._data.get(table, []):
+                if int(row.get("id", -1)) == int(row_id):
+                    row.update(fields)
+                    self._save()
+                    return dict(row)
+            return None
+
     def get_day(self, date: str) -> dict[str, Any]:
         with self._lock:
             day = self._data["coding_daily"].get(date)

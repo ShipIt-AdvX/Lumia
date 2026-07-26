@@ -80,6 +80,7 @@
           <div class="nav-item" data-panel="reminders">提醒</div>
           <div class="nav-item" data-panel="git">成就墙</div>
           <div class="nav-item" data-panel="server">服务</div>
+          <div class="nav-item" data-panel="petdebug">猫·调试</div>
         </nav>
 
         <main class="settings-main">
@@ -121,6 +122,29 @@
             <div class="field"><label>Host</label><input type="text" style="width:180px" data-path="server.host"></div>
             <div class="field"><label>Port</label><input type="number" step="1" min="1" max="65535" data-path="server.port"></div>
             <div class="hintline" style="margin-left:0">修改后需重启后端 (run.py) 才会生效。</div>
+          </section>
+
+          <section class="panel" data-panel="petdebug">
+            <h2>猫·调试</h2>
+            <div class="hintline" style="margin-left:0">强制地瓜派 / 电脑侧猫的导演行为（调用 <code>/api/pet/debug</code>）。</div>
+            <div class="field"><label>当前</label><span class="unit" id="petDebugStatus">加载中…</span></div>
+            <div class="field"><label>行为</label>
+              <select id="petDebugAction">
+                <option value="auto">自动</option>
+                <option value="idle">闲逛 idle</option>
+                <option value="sleep">睡觉 sleep</option>
+                <option value="meal">吃饭 meal</option>
+                <option value="sit_away">久坐走远 sit_away</option>
+              </select>
+            </div>
+            <div class="field"><label>持续</label><input type="number" id="petDebugMinutes" value="10" min="1" max="120" step="1"><span class="unit">分钟</span></div>
+            <div class="field"><label>气泡文案</label><input type="text" id="petDebugBubble" style="width:280px" placeholder="可选，留空用默认"></div>
+            <div class="field"><label></label>
+              <button class="btn primary" id="petDebugApply">应用</button>
+              <button class="btn" id="petDebugClear">恢复自动</button>
+              <button class="btn" id="petDebugRefresh">刷新状态</button>
+            </div>
+            <pre class="preview" id="petDebugPreview" style="white-space:pre-wrap;font-size:12px;max-width:520px">—</pre>
           </section>
         </main>
       </div>

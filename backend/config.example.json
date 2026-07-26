@@ -42,6 +42,7 @@
   },
   "reminders": {
     "sleep_time": "01:30",
+    "sleep_end": "07:00",
     "meals": ["12:00", "19:00"],
     "water_interval_min": 60,
     "move_interval_min": 45
@@ -50,9 +51,23 @@
     "sedentary_minutes": 45,
     "renudge_minutes": 20
   },
+  "pet": {
+    "return_after_stand_sec": 90
+  },
   "chair": {
     "mode": "simulate",
     "relay_url": "http://192.168.1.50:8790/stretch"
+  },
+  "asr": {
+    "mode": "xfyun",
+    "xfyun_app_id": "",
+    "xfyun_api_key": "",
+    "xfyun_api_secret": "",
+    "local_model": "base"
+  },
+  "deepseek": {
+    "api_key": "",
+    "base_url": "https://api.deepseek.com"
   },
   "git": {
     "repos": [],

@@ -153,7 +153,7 @@
         for (const idea of todays) {
           const row = document.createElement('div');
           row.className = 'idea';
-          const label = idea.kind === 'audio' ? '🎙 语音灵感' : esc(idea.text);
+          const label = idea.ai_title || idea.text || (idea.kind === 'audio' ? '🎙 语音灵感' : '灵感');
           row.innerHTML = `${label} <span class="time">· ${esc((idea.ts || '').slice(11, 16))}</span>`;
           box.appendChild(row);
         }

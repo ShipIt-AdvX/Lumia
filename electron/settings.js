@@ -327,3 +327,41 @@
 
   init();
 })();
+
+
+  // ---- pet debug ----
+  async function refreshPetDebug() {
+    const status = document.getElementById('petDebugStatus');
+    const preview = document.getElementById('petDebugPreview');
+    try {
+      const st = await window.lumia.fetchJSON('/api/pet/state');
+      const dbg = st.debug || {};
+      status.textContent = dbg.forced
+        ? `强制 ${dbg.action} → ${st.action}（至 ${dbg.until || '?'}）`
+        : `自动 · 当前 ${st.action}（自然 ${st.natural_action || st.action}）`;
+      if (preview) preview.textContent = JSON.stringify({ action: st.action, bubble: st.bubble, scale: st.scale, steal_cursor: st.steal_cursor, debug: dbg }, null, 2);
+      if (!dbg.forced) document.getElementById('petDebugAction').value = 'auto';
+      else document.getElementById('petDebugAction').value = dbg.action || 'auto';
+    } catch (_) {
+      if (status) status.textContent = '无法读取 /api/pet/state';
+    }
+  }
+  const petDebugRefresh = document.getElementById('petDebugRefresh');
+  if (petDebugRefresh) {
+    petDebugRefresh.addEventListener('click', refreshPetDebug);
+    document.getElementById('petDebugClear')?.addEventListener('click', async () => {
+      try { await window.lumia.postJSON('/api/pet/debug', { action: 'auto' }); await refreshPetDebug(); } catch (e) { alert(e.message); }
+    });
+    document.getElementById('petDebugApply')?.addEventListener('click', async () => {
+      const action = document.getElementById('petDebugAction').value;
+      const minutes = Number(document.getElementById('petDebugMinutes').value) || 10;
+      const bubble = document.getElementById('petDebugBubble').value.trim() || null;
+      try {
+        await window.lumia.postJSON('/api/pet/debug', { action, minutes, bubble });
+        await refreshPetDebug();
+      } catch (e) { alert(e.message); }
+    });
+    document.querySelectorAll('.nav-item').forEach((item) => {
+      item.addEventListener('click', () => { if (item.dataset.panel === 'petdebug') refreshPetDebug(); });
+    });
+  }

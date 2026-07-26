@@ -46,6 +46,34 @@ let shutdownCancelCount = 0;
 const floats = [];
 const floatState = new Map();
 
+/** 久坐时把鼠标拽到角落（依赖 xdotool / 仅 Linux；Windows 由队友另做） */
+let cursorKidnapTimer = null;
+let cursorKidnapActive = false;
+function setCursorKidnap(on) {
+  if (on === cursorKidnapActive) return;
+  cursorKidnapActive = on;
+  if (cursorKidnapTimer) { clearInterval(cursorKidnapTimer); cursorKidnapTimer = null; }
+  if (!on) { log('pet', 'cursor kidnap off'); return; }
+  if (process.platform !== 'linux') { log('pet', 'cursor kidnap skipped (non-linux)'); return; }
+  log('pet', 'cursor kidnap on');
+  cursorKidnapTimer = setInterval(() => {
+    try {
+      const wa = workArea();
+      const x = wa.x + wa.width - 8;
+      const y = wa.y + Math.floor(wa.height * 0.55);
+      spawn('xdotool', ['mousemove', '--sync', String(x), String(y)], { stdio: 'ignore' });
+    } catch (_) {}
+  }, 900);
+}
+async function pollPetDirector() {
+  try {
+    const pet = await api('/api/pet/state');
+    setCursorKidnap(!!pet.steal_cursor);
+  } catch (_) { setCursorKidnap(false); }
+}
+
+
+
 function makeTrayIcon() {
   const size = 16;
   const buf = Buffer.alloc(size * size * 4);
@@ -615,6 +643,11 @@ async function pollEvents() {
     for (const event of data.events || []) {
       lastEventId = Math.max(lastEventId, event.id);
       log('poll', 'event received', { id: event.id, type: event.type, title: event.title });
+      if (event.type === 'idea_captured_silent') { log('poll', 'silent idea stored', event.data); continue; }
+      if (event.type === 'pet_sit_away') { setCursorKidnap(true); continue; }
+      if (event.type === 'pet_sleep' || event.type === 'pet_meal' || event.type === 'pet_idle') {
+        setCursorKidnap(false);
+      }
       if (event.type === 'coding_delay_started' && delayWidget && !delayWidget.isDestroyed()) { log('poll', 'skip coding_delay_started, delay widget alive'); continue; }
       if (event.type === 'coding_limit') { lockdownSuppressed = false; await openLockdown('limit'); continue; }
       if (event.type === 'coding_locked') { lockdownSuppressed = false; await openLockdown('locked'); continue; }
@@ -695,6 +728,15 @@ ipcMain.on('popup-action', async (evt, payload) => {
   if (id === 'delay') { await requestDelay(); }
   else if (id === 'delay-confirm') { await confirmDelay(); }
   else if (id === 'achievements') { openAchievements(); }
+  else if (typeof id === 'string' && id.startsWith('idea-confirm:')) {
+    const ideaId = id.slice('idea-confirm:'.length);
+    try { await api('/api/ideas/' + ideaId + '/confirm', { method: 'POST' }); log('ideas', 'confirmed', { ideaId }); }
+    catch (err) { log('ideas', 'confirm failed: ' + err.message); }
+  } else if (typeof id === 'string' && id.startsWith('idea-discard:')) {
+    const ideaId = id.slice('idea-discard:'.length);
+    try { await api('/api/ideas/' + ideaId + '/discard', { method: 'POST' }); log('ideas', 'discarded', { ideaId }); }
+    catch (err) { log('ideas', 'discard failed: ' + err.message); }
+  }
 });
 ipcMain.on('popup-dismiss', (evt) => {
   const w = BrowserWindow.fromWebContents(evt.sender);
@@ -893,7 +935,9 @@ app.whenReady().then(() => {
   maybeSpawnBackend();
   buildTray();
   initLastEventId().then(() => {
-    setInterval(pollEvents, CFG.pollIntervalMs);
+    setInterval(pollPetDirector, Math.max(CFG.pollIntervalMs || 2000, 3000));
+  pollPetDirector();
+  setInterval(pollEvents, CFG.pollIntervalMs);
     setInterval(checkLockdownState, 1000);
   });
 });

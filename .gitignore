@@ -8,4 +8,9 @@ build/
 .idea/
 .vscode/
 *.*~
-*.pyc
+*.pycnode_modules/
+electron/node_modules/
+backend/lumia.db
+backend/config.json
+backend/lumia.json
+.env
