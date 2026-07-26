@@ -1,0 +1,20 @@
+#pragma once
+
+/* 首次烧录种子；之后用手机连 LumiaPuck 配网即可改 */
+
+#define WIFI_SSID "YOUR_WIFI"
+#define WIFI_PASS "YOUR_PASS"
+
+#define LUMIA_HOST "192.168.1.10"
+#define LUMIA_PORT 8787
+
+#define AP_SSID "LumiaPuck"
+#define AP_PASS "12345678"
+
+#define BUTTON_PIN 20
+#define LED_PIN 9 /* 流式常亮 / 上传慢闪 */
+
+/* 本地只保留约 3s 环形缓冲，读走即丢 */
+#define MIC_HOLD_MS 3000
+/* 每片约 0.5s PCM @16kHz/16bit */
+#define STREAM_CHUNK_BYTES 16000

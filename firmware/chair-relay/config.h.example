@@ -1,0 +1,26 @@
+#pragma once
+
+/* 复制为 config.h 可覆盖默认引脚。
+ *
+ * 丝印 A7/A6/A5/A4：
+ * - 多数 Waveshare ESP32-S3：A4=GPIO5 … 若板型有 A7 则用 A7
+ * - 经典 ESP32：Arduino 里 A4=32 A5=33 A6=34 A7=35，
+ *   但 GPIO34/35 只能输入，不能开漏拉低 —— 必须改成可输出脚，
+ *   或换 ESP32-S3。
+ */
+
+// #define PIN_A7 5
+// #define PIN_A6 6
+// #define PIN_A5 7
+// #define PIN_A4 8
+
+/* SoftAP */
+#define AP_SSID "LiberNovo"
+#define AP_PASS ""          /* 空 = 开放网络 */
+#define AP_LOCAL_IP 192, 168, 4, 1
+
+/* 桌宠 / OrangePi 上的 Lumia 默认端口 */
+#define DEFAULT_PET_PORT 8787
+
+/* 点动时长（ms），安全上限在固件里再钳制 */
+#define DEFAULT_PULSE_MS 300

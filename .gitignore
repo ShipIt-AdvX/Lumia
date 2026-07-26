@@ -14,3 +14,5 @@ backend/lumia.db
 backend/config.json
 backend/lumia.json
 .env
+firmware/**/.pio/
+firmware/**/config.h
