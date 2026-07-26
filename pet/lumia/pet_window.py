@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QLabel, QMenu, QWidget
 from .animation import Animator, SpriteLibrary
 from .backdrop import BackdropWindow, PanelGuard
 from .config import Config
+from .skins import catalog, is_fullscreen_skin, resolve_sprites_dir
 from .state_machine import PetStateMachine
 
 log = logging.getLogger("lumia.window")
@@ -63,6 +64,7 @@ class PetWindow(QWidget):
         self.setMouseTracking(True)  # 无按键悬停也产生 mouseMoveEvent（趴卧抬头用）
         w, h = self.library.frame_size()
         self._base_w, self._base_h = w, h
+        self._fullscreen_face = is_fullscreen_skin(sprites_dir)
         self.setFixedSize(w, h)
 
         self._drag_offset: QPoint | None = None
@@ -81,8 +83,18 @@ class PetWindow(QWidget):
         self._bubble = QLabel(self)
         self._bubble.setWordWrap(True)
         self._bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._bubble.setFont(_bubble_font(11))
+        bubble_pt = 22 if self._fullscreen_face else 11
+        self._bubble.setFont(_bubble_font(bubble_pt))
         self._bubble.setStyleSheet(
+            "QLabel {"
+            " background: rgba(0,0,0,200);"
+            " color: #00aeec;"
+            " border-radius: 8px;"
+            " padding: 10px 16px;"
+            " border: 2px solid #00aeec;"
+            "}"
+            if self._fullscreen_face
+            else
             "QLabel {"
             " background: rgba(255,255,255,230);"
             " color: #222;"
@@ -93,6 +105,9 @@ class PetWindow(QWidget):
         )
         self._bubble.hide()
 
+        if self._fullscreen_face:
+            # 全屏脸：不乱走；久坐时靠缩小表示走远
+            self.machine.walking_enabled = False
         self._place_initial()
 
         self._last_tick = time.monotonic()
@@ -114,9 +129,21 @@ class PetWindow(QWidget):
         return self._work_area().bottom() - self.height() + 1
 
     def _on_ground(self) -> bool:
+        if self._fullscreen_face:
+            return True  # 全屏脸不参与重力/下落
         return self.y() >= self._ground_y() - 1
 
     def _place_initial(self) -> None:
+        scr = self.screen() or QGuiApplication.primaryScreen()
+        full = scr.geometry()
+        if self._fullscreen_face:
+            # 真正铺满整块屏（奖杯 OLED 脸）
+            self.setFixedSize(full.width(), full.height())
+            self._base_w, self._base_h = full.width(), full.height()
+            self.move(full.left(), full.top())
+            self._fx, self._fy = float(full.left()), float(full.top())
+            log.info("全屏脸模式，铺满: %s", full)
+            return
         area = self._work_area()
         x = area.left() + int(area.width() * 0.7)
         self.move(x, self._ground_y())
@@ -132,13 +159,18 @@ class PetWindow(QWidget):
         if enabled == self.is_clean_mode():
             return
         if enabled:
-            self._backdrop = BackdropWindow(self.screen())
+            self._backdrop = BackdropWindow(
+                self.screen(), solid_black=self._fullscreen_face
+            )
             self._backdrop.exit_requested.connect(lambda: self.set_clean_mode(False))
             self._backdrop.pressed.connect(self.raise_)
             self._backdrop.showFullScreen()
             self.raise_()  # 桌宠回到幕布之上
             self._panel_guard.hide()
             self.setCursor(Qt.CursorShape.BlankCursor)  # 全屏无鼠标（幕布+桌宠都隐藏）
+            if self._fullscreen_face:
+                self._place_initial()
+                self.raise_()
             log.info("纯净模式开启：幕布覆盖 %s", self._backdrop.geometry())
         else:
             self._backdrop.close()
@@ -172,6 +204,12 @@ class PetWindow(QWidget):
     # --- 导演（大脑） ---
 
     def apply_director(self, snap: dict[str, Any]) -> None:
+        # Windows 设置改外形 → 大脑 snapshot.skin → 地瓜派热切换
+        want_skin = str(snap.get("skin") or "").strip()
+        cur_skin = str(self.config.get("skin") or "")
+        if want_skin and want_skin != cur_skin:
+            self.set_skin(want_skin, from_brain=True)
+
         action = str(snap.get("action") or "idle")
         bubble = str(snap.get("bubble") or "")
         scale = float(snap.get("scale") or 1.0)
@@ -180,7 +218,11 @@ class PetWindow(QWidget):
 
         mode = action if action in ("sleep", "meal", "sit_away") else None
         self.machine.set_director_mode(mode)
-        self._apply_scale(scale)
+        # 全屏脸不缩窗；桌宠（猫）跟随久坐 scale
+        if not self._fullscreen_face:
+            self._apply_scale(scale)
+        elif abs(self._scale - 1.0) > 0.02:
+            self._apply_scale(1.0)
 
         if action != prev and bubble:
             self.say(bubble, ms=4500)
@@ -249,7 +291,13 @@ class PetWindow(QWidget):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.drawPixmap(0, 0, self.animator.current_frame(self.machine.facing_left))
+        frame = self.animator.current_frame(self.machine.facing_left)
+        # 全屏脸 / display_scale / 导演缩放：窗口与原图不一致时拉伸铺满
+        if frame.width() != self.width() or frame.height() != self.height():
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.drawPixmap(self.rect(), frame)
+        else:
+            painter.drawPixmap(0, 0, frame)
 
     # --- 鼠标交互 ---
 
@@ -315,6 +363,18 @@ class PetWindow(QWidget):
         act_autostart.setChecked(self.config.get("autostart"))
 
         menu.addSeparator()
+        skin_menu = menu.addMenu("外形皮肤")
+        skin_actions: list[tuple[object, str]] = []
+        current_skin = str(self.config.get("skin") or "bilibili_tv")
+        for item in catalog():
+            sid = str(item.get("id") or "")
+            name = str(item.get("name") or sid)
+            act = skin_menu.addAction(name)
+            act.setCheckable(True)
+            act.setChecked(sid == current_skin)
+            skin_actions.append((act, sid))
+
+        menu.addSeparator()
         dbg = menu.addMenu("调试·强制行为")
         act_dbg_auto = dbg.addAction("恢复自动")
         act_dbg_idle = dbg.addAction("闲逛 idle")
@@ -354,6 +414,77 @@ class PetWindow(QWidget):
         elif chosen is act_quit:
             log.info("菜单操作: 退出")
             QGuiApplication.instance().quit()
+        else:
+            for act, sid in skin_actions:
+                if chosen is act:
+                    self.set_skin(sid)
+                    break
+
+    def set_skin(self, skin_id: str, *, from_brain: bool = False) -> None:
+        """热切换外形（小电视全屏脸 / 猫）。from_brain=True 时不回写大脑。"""
+        skin_id = (skin_id or "bilibili_face").strip()
+        if skin_id == str(self.config.get("skin") or ""):
+            return
+        path = resolve_sprites_dir(skin_id)
+        if not path.exists():
+            self.say(f"皮肤不存在: {skin_id}", ms=2000)
+            return
+        try:
+            lib = SpriteLibrary(path)
+        except RuntimeError as exc:
+            log.error("加载皮肤失败: %s", exc)
+            self.say("皮肤加载失败", ms=2000)
+            return
+        self.library = lib
+        self.animator = Animator(lib)
+        w, h = lib.frame_size()
+        self._base_w, self._base_h = w, h
+        self._fullscreen_face = is_fullscreen_skin(path)
+        self._scale = 1.0
+        self.setFixedSize(w, h)
+        bubble_pt = 22 if self._fullscreen_face else 11
+        self._bubble.setFont(_bubble_font(bubble_pt))
+        if self._fullscreen_face:
+            self.machine.walking_enabled = False
+            if not self.is_clean_mode():
+                self.set_clean_mode(True, save=True)
+        else:
+            # 猫等桌宠：桌面行走，退出全屏幕布
+            self.machine.walking_enabled = bool(self.config.get("walking_enabled"))
+            if self.is_clean_mode():
+                self.set_clean_mode(False, save=True)
+            else:
+                self.config.set("clean_mode", False)
+        self._place_initial()
+        self.config.set("skin", skin_id)
+        name = next((s.get("name") for s in catalog() if s.get("id") == skin_id), skin_id)
+        self.say(f"外形 → {name}", ms=2200)
+        log.info("切换皮肤: %s fullscreen=%s (%s)", skin_id, self._fullscreen_face, path)
+        if not from_brain:
+            self._push_skin_to_brain(skin_id)
+
+    def _push_skin_to_brain(self, skin_id: str) -> None:
+        """右键本地切换时回写大脑，与 Windows 设置对齐。"""
+        import json
+        import urllib.error
+        import urllib.request
+
+        url = str(self.config.get("brain_url") or "").rstrip("/")
+        if not url:
+            return
+        try:
+            body = json.dumps({"skin": skin_id}).encode()
+            req = urllib.request.Request(
+                f"{url}/api/pet/skin",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="PUT",
+            )
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                resp.read()
+            log.info("已同步外形到大脑: %s", skin_id)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            log.warning("同步外形到大脑失败: %s", exc)
 
     def _force_brain_debug(self, action: str, minutes: float = 15) -> None:
         """向电脑大脑 POST /api/pet/debug；失败则本地直接套导演。"""
@@ -415,6 +546,6 @@ class PetWindow(QWidget):
             self,
             "关于 Lumia",
             f"Lumia 桌宠 v{__version__}\n\n"
-            "一只 Minecraft 花斑猫桌面宠物。\n"
+            "Lumia 桌宠：小电视 / Minecraft 猫可切换。\n"
             "猫贴图版权归 Mojang Studios 所有，仅供个人使用。",
         )

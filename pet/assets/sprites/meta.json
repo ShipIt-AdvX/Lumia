@@ -1,6 +1,7 @@
 {
   "facing": "left",
   "anchor": "bottom-center",
+  "display_scale": 0.5,
   "fps": {
     "idle": 4,
     "walk": 8,

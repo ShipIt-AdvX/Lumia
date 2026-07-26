@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SPRITES_DIR = ROOT / "assets" / "sprites"
 
 from lumia.logger import log_environment, setup_logging  # noqa: E402
+from lumia.skins import resolve_sprites_dir  # noqa: E402
 
 
 def ensure_platform() -> None:
@@ -66,11 +66,15 @@ def main() -> int:
     signal.signal(signal.SIGTERM, lambda *_: app.quit())
     signal.signal(signal.SIGINT, lambda *_: app.quit())
 
-    if not SPRITES_DIR.exists() or not any(SPRITES_DIR.iterdir()):
-        log.error("素材目录为空，请先运行: python scripts/build_cat_sprites.py")
-        return 1
-
     config = Config()
+    sprites_dir = resolve_sprites_dir(str(config.get("skin") or "bilibili_face"))
+    if not sprites_dir.exists() or not any(sprites_dir.iterdir()):
+        log.error(
+            "素材目录为空: %s（可运行 python scripts/build_bilibili_fullscreen.py）",
+            sprites_dir,
+        )
+        return 1
+    log.info("皮肤: %s -> %s", config.get("skin"), sprites_dir)
 
     # 已开启自启时每次启动刷新 .desktop（项目路径变动/Exec 格式升级后自愈）
     if config.get("autostart"):
@@ -78,12 +82,19 @@ def main() -> int:
 
         set_autostart(True)
 
-    pet = PetWindow(SPRITES_DIR, config)
+    pet = PetWindow(sprites_dir, config)
     pet.show()
 
-    # 纯净模式：启动即用全屏幕布隐藏桌面/面板，只保留桌宠
-    if config.get("clean_mode"):
+    # 全屏小电视脸：自动纯净黑幕；猫默认桌面行走（右键可开纯净模式）
+    from lumia.skins import is_fullscreen_skin
+
+    if is_fullscreen_skin(sprites_dir):
         pet.set_clean_mode(True, save=False)
+        config.set("clean_mode", True)
+    else:
+        # 避免从全屏脸留下的 clean_mode=true 把桌宠又挡在幕布里
+        if config.get("clean_mode"):
+            config.set("clean_mode", False)
 
     # 连接电脑大脑：睡觉/吃饭/久坐导演
     brain = None

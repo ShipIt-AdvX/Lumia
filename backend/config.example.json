@@ -52,7 +52,8 @@
     "renudge_minutes": 20
   },
   "pet": {
-    "return_after_stand_sec": 90
+    "return_after_stand_sec": 90,
+    "skin": "bilibili_face"
   },
   "chair": {
     "mode": "simulate",

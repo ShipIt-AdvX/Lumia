@@ -22,6 +22,8 @@ DEFAULTS = {
     "clean_mode": True,  # 纯净模式：全屏幕布隐藏桌面/面板，只保留桌宠
     # 本机大脑（电脑 IP）；地瓜派与电脑同网段时填电脑地址
     "brain_url": "http://10.31.114.110:8787",
+    # 外形：bilibili_face(全屏正统脸) | bilibili_tv | minecraft_cat
+    "skin": "bilibili_face",
 }
 
 

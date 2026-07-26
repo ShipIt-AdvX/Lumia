@@ -30,6 +30,10 @@
     .field.col { align-items: flex-start; flex-direction: column; gap: 8px; }
     .field.col label { flex: none; }
     .hintline { font-size: 12px; color: #7f7a8c; margin: 6px 0 0 144px; }
+    .skin-opt { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #cfc9dc;
+      padding: 8px 10px; background: #241f26; cursor: pointer; }
+    .skin-opt:hover { background: #2b2933; }
+    .skin-opt input { accent-color: #e0887a; }
     .preview { margin-top: 8px; padding: 10px 12px; background: #241f26; border-radius: 0;
       font-size: 13px; color: #f5b7ad; }
 
@@ -80,6 +84,7 @@
           <div class="nav-item" data-panel="reminders">提醒</div>
           <div class="nav-item" data-panel="git">成就墙</div>
           <div class="nav-item" data-panel="server">服务</div>
+          <div class="nav-item" data-panel="petskin">桌宠外形</div>
           <div class="nav-item" data-panel="petdebug">猫·调试</div>
         </nav>
 
@@ -122,6 +127,24 @@
             <div class="field"><label>Host</label><input type="text" style="width:180px" data-path="server.host"></div>
             <div class="field"><label>Port</label><input type="number" step="1" min="1" max="65535" data-path="server.port"></div>
             <div class="hintline" style="margin-left:0">修改后需重启后端 (run.py) 才会生效。</div>
+          </section>
+
+          <section class="panel" data-panel="petskin">
+            <h2>桌宠外形</h2>
+            <div class="hintline" style="margin-left:0">切换地瓜派上的桌宠角色。猫走桌面；小电视全屏脸铺满屏幕。立即生效（<code>PUT /api/pet/skin</code>）。</div>
+            <div class="field"><label>当前</label><span class="unit" id="petSkinStatus">加载中…</span></div>
+            <div class="field col"><label>角色</label>
+              <div id="petSkinChoices" class="skin-choices" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:420px">
+                <label class="skin-opt"><input type="radio" name="petSkin" value="bilibili_face"> 小电视·全屏脸</label>
+                <label class="skin-opt"><input type="radio" name="petSkin" value="minecraft_cat"> Minecraft 猫（桌面行走）</label>
+                <label class="skin-opt"><input type="radio" name="petSkin" value="bilibili_tv"> 小电视·简绘（桌面）</label>
+              </div>
+            </div>
+            <div class="field"><label></label>
+              <button class="btn primary" id="petSkinApply">立即切换</button>
+              <button class="btn" id="petSkinRefresh">刷新</button>
+            </div>
+            <pre class="preview" id="petSkinPreview" style="white-space:pre-wrap;font-size:12px;max-width:520px">—</pre>
           </section>
 
           <section class="panel" data-panel="petdebug">

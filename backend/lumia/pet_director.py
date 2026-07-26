@@ -41,6 +41,19 @@ _DEBUG_BUBBLES = {
     "sit_away": "（调试）坐太久啦，我先走了——起来走走吧！",
 }
 
+# 与地瓜派 pet/assets/skins/catalog.json 对齐；Windows 设置与 OPi 共用
+ALLOWED_SKINS: tuple[str, ...] = (
+    "bilibili_face",
+    "minecraft_cat",
+    "bilibili_tv",
+)
+
+SKIN_META: dict[str, dict[str, Any]] = {
+    "bilibili_face": {"name": "小电视·全屏脸", "mode": "fullscreen"},
+    "minecraft_cat": {"name": "Minecraft 猫", "mode": "desktop"},
+    "bilibili_tv": {"name": "小电视·简绘", "mode": "desktop"},
+}
+
 
 class PetDirector:
     """无状态计算：依赖 Reminders 快照 + 配置；支持调试强制行为。"""
@@ -82,6 +95,29 @@ class PetDirector:
 
     def clear_debug(self) -> dict[str, Any]:
         return self.set_debug("auto")
+
+    def get_skin(self) -> str:
+        raw = str(self._cfg.get("pet", "skin", default="bilibili_face") or "bilibili_face").strip()
+        return raw if raw in ALLOWED_SKINS else "bilibili_face"
+
+    def set_skin(self, skin: str) -> dict[str, Any]:
+        skin = (skin or "").strip()
+        if skin not in ALLOWED_SKINS:
+            return {
+                "ok": False,
+                "error": f"unknown skin: {skin}",
+                "allowed": list(ALLOWED_SKINS),
+            }
+        self._cfg.update({"pet": {"skin": skin}})
+        return {"ok": True, "skin": skin, "state": self.snapshot()}
+
+    def list_skins(self) -> dict[str, Any]:
+        current = self.get_skin()
+        items = [
+            {"id": sid, **SKIN_META.get(sid, {"name": sid, "mode": "desktop"}), "current": sid == current}
+            for sid in ALLOWED_SKINS
+        ]
+        return {"skins": items, "current": current}
 
     def debug_info(self) -> dict[str, Any]:
         self._expire_debug()
@@ -180,10 +216,13 @@ class PetDirector:
             else:
                 scale = 1.0
 
+        skin = self.get_skin()
         return {
             "action": action,
             "bubble": bubble,
             "scale": round(scale, 2),
+            "skin": skin,
+            "skin_meta": SKIN_META.get(skin, {"name": skin, "mode": "desktop"}),
             "angry_on_click": action == "sleep",
             "steal_cursor": action == "sit_away",
             "in_sleep_window": in_sleep,

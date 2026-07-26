@@ -1,0 +1,19 @@
+{
+  "skins": [
+    {
+      "id": "bilibili_face",
+      "name": "小电视·全屏脸",
+      "path": "skins/bilibili_face"
+    },
+    {
+      "id": "minecraft_cat",
+      "name": "Minecraft 猫",
+      "path": "sprites"
+    },
+    {
+      "id": "bilibili_tv",
+      "name": "小电视·简绘",
+      "path": "skins/bilibili_tv"
+    }
+  ]
+}

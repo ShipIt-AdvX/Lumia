@@ -1,0 +1,1 @@
+Face frames adapted from ElectronBili (https://github.com/sytnocui/ElectronBili), style inspired by peng-zhihui ElectronBot/HoloCubic.

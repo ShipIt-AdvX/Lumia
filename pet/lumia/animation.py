@@ -27,6 +27,7 @@ class SpriteLibrary:
         self.fps: dict[str, int] = {}
         self.loop: dict[str, bool] = {}
         self.native_facing = "left"
+        self.display_scale = 1.0
         self._load()
 
     def _load(self) -> None:
@@ -35,6 +36,11 @@ class SpriteLibrary:
         if meta_path.exists():
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             self.native_facing = meta.get("facing", "left")
+            try:
+                self.display_scale = float(meta.get("display_scale", 1.0) or 1.0)
+            except (TypeError, ValueError):
+                self.display_scale = 1.0
+            self.display_scale = max(0.2, min(2.0, self.display_scale))
         fps_map = meta.get("fps", {})
         loop_map = meta.get("loop", {})
 
@@ -62,8 +68,10 @@ class SpriteLibrary:
         log.info("素材加载完成: %s", {s: len(f) for s, f in self.frames.items()})
 
     def frame_size(self) -> tuple[int, int]:
+        """显示尺寸（已乘 display_scale）。"""
         first = next(iter(self.frames.values()))[0]
-        return first.width(), first.height()
+        s = self.display_scale
+        return max(1, int(first.width() * s)), max(1, int(first.height() * s))
 
 
 class Animator:

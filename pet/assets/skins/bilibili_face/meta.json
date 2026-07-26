@@ -1,0 +1,28 @@
+{
+  "facing": "left",
+  "anchor": "center",
+  "fullscreen": true,
+  "fps": {
+    "idle": 6,
+    "walk": 8,
+    "drag": 10,
+    "fall": 10,
+    "land": 8,
+    "turn": 8,
+    "look": 6,
+    "turn_back": 8,
+    "lie_down": 6,
+    "rest": 2,
+    "rest_peek": 6,
+    "sleep": 3,
+    "get_up": 8
+  },
+  "loop": {
+    "turn": false,
+    "turn_back": false,
+    "land": false,
+    "lie_down": false,
+    "rest_peek": false,
+    "get_up": false
+  }
+}

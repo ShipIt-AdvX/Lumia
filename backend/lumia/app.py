@@ -192,7 +192,7 @@ def state() -> dict[str, Any]:
 
 @app.get("/api/pet/state")
 def pet_state() -> dict[str, Any]:
-    """地瓜派 / 电脑侧拉取猫导演状态（睡觉、吃饭、久坐走远、抓鼠标等）。"""
+    """地瓜派 / 电脑侧拉取猫导演状态（睡觉、吃饭、久坐走远、外形、抓鼠标等）。"""
     return pet_director.snapshot()
 
 
@@ -201,6 +201,30 @@ class PetDebugIn(BaseModel):
     minutes: float = 10
     bubble: str | None = None
     scale: float | None = None
+
+
+class PetSkinIn(BaseModel):
+    skin: str  # bilibili_face | minecraft_cat | bilibili_tv
+
+
+@app.get("/api/pet/skins")
+def pet_skins() -> dict[str, Any]:
+    """可选桌宠外形列表（Windows 设置 / 地瓜派共用）。"""
+    return pet_director.list_skins()
+
+
+@app.put("/api/pet/skin")
+def pet_skin_put(body: PetSkinIn) -> dict[str, Any]:
+    """切换桌宠外形；写入 config.pet.skin，下一帧 /api/pet/state 即带新 skin。"""
+    result = pet_director.set_skin(body.skin)
+    if result.get("ok"):
+        bus.emit(
+            "pet_skin",
+            "桌宠外形",
+            str(result.get("skin")),
+            data=result.get("state") or {},
+        )
+    return result
 
 
 @app.post("/api/pet/debug")

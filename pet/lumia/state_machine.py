@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 
 log = logging.getLogger("lumia.state")
 
@@ -69,6 +70,7 @@ class PetStateMachine:
         self._sleep_after = 0.0  # 本次趴卧多久后入睡
         # 导演强制：None | sleep | meal | sit_away
         self.director_mode: str | None = None
+        self._anger_until: float = 0.0
         self._director_walk_boost = False
 
     @staticmethod
@@ -110,9 +112,10 @@ class PetStateMachine:
                 self._next_walk_at = self._rand_idle()
 
     def anger_burst(self) -> None:
-        """睡觉时段被点：短暂炸毛再睡回去。"""
-        self._look_until = 1.2
-        self._switch(LOOK)
+        """睡觉时段被点：短暂炸毛再睡回去（用 fall/闪电帧，避免和吃饭 look 冲突）。"""
+        self._anger_until = time.monotonic() + 1.4
+        self._timer = 0.0
+        self._switch(FALL)
 
     def start_drag(self) -> None:
         if self.state == SLEEP or self.director_mode == "sleep":
@@ -169,6 +172,16 @@ class PetStateMachine:
     def tick(self, dt: float, on_ground: bool, at_left_edge: bool, at_right_edge: bool) -> tuple[float, float]:
         self._timer += dt
 
+        # 生气爆发：播完 fall 帧后回到睡觉导演
+        if self._anger_until and time.monotonic() >= self._anger_until:
+            self._anger_until = 0.0
+            self.vy = 0.0
+            if self.director_mode == "sleep":
+                self._switch(SLEEP)
+            else:
+                self._switch(IDLE)
+            return 0.0, 0.0
+
         # 体力结算：走动消耗，趴卧/睡眠恢复
         if self.state == WALK:
             self.energy = max(0.0, self.energy - dt / WALK_DRAIN_T)
@@ -179,6 +192,10 @@ class PetStateMachine:
 
         if self.state == DRAG:
             return 0.0, 0.0  # 拖拽中位置由鼠标控制
+
+        # 生气动画：原地播 fall，不真下落
+        if self._anger_until and self.state == FALL:
+            return 0.0, 0.0
 
         # 非拖拽状态下悬空（如分辨率变化/任务栏位置变化）自动转下落
         if not on_ground and self.state not in (FALL,):
@@ -194,8 +211,11 @@ class PetStateMachine:
 
         if self.state == LAND:
             if self._timer >= LAND_DURATION:
-                self._switch(IDLE)
-                self._next_walk_at = self._rand_idle()
+                if self.director_mode == "sleep":
+                    self._switch(SLEEP)
+                else:
+                    self._switch(IDLE)
+                    self._next_walk_at = self._rand_idle()
             return 0.0, 0.0
 
         # 转身看你链路：turn -> look -> turn_back -> idle（全程原地）

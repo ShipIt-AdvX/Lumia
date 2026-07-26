@@ -31,7 +31,7 @@ class BackdropWindow(QWidget):
     exit_requested = pyqtSignal()
     pressed = pyqtSignal()
 
-    def __init__(self, screen: QScreen):
+    def __init__(self, screen: QScreen, *, solid_black: bool = False):
         super().__init__()
         # 置顶 + 全屏；桌宠随后 raise 到幕布之上；Tool 避免出现在任务栏
         self.setWindowFlags(
@@ -42,10 +42,13 @@ class BackdropWindow(QWidget):
         self.setWindowTitle("Lumia 幕布")
         self.setCursor(Qt.CursorShape.BlankCursor)  # 纯净模式不显示鼠标
         self.setGeometry(screen.geometry())
+        self._solid_black = solid_black
 
         # 预缩放背景图：等比铺满并居中裁剪（cover），避免每帧重缩放
         self._bg: QPixmap | None = None
-        if BG_IMAGE.exists():
+        if solid_black:
+            log.info("幕布背景: 纯黑（全屏脸）")
+        elif BG_IMAGE.exists():
             raw = QPixmap(str(BG_IMAGE))
             if not raw.isNull():
                 scaled = raw.scaled(
@@ -64,6 +67,9 @@ class BackdropWindow(QWidget):
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
+        if self._solid_black:
+            painter.fillRect(self.rect(), QColor(0, 0, 0))
+            return
         if self._bg is not None:
             painter.drawPixmap(0, 0, self._bg)
             return

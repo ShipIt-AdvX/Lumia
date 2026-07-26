@@ -295,6 +295,85 @@
     });
   }
 
+  // ---- pet skin（立即写大脑，并同步 working 避免保存冲掉）----
+  async function refreshPetSkin() {
+    const status = document.getElementById('petSkinStatus');
+    const preview = document.getElementById('petSkinPreview');
+    try {
+      const list = await window.lumia.fetchJSON('/api/pet/skins');
+      const cur = list.current || 'bilibili_face';
+      const meta = (list.skins || []).find((s) => s.id === cur);
+      if (status) status.textContent = meta ? `${meta.name}（${meta.mode || '?'}）` : cur;
+      const radio = document.querySelector(`input[name="petSkin"][value="${cur}"]`);
+      if (radio) radio.checked = true;
+      if (preview) preview.textContent = JSON.stringify(list, null, 2);
+      working.pet = working.pet || {};
+      working.pet.skin = cur;
+      baseline.pet = baseline.pet || {};
+      baseline.pet.skin = cur;
+    } catch (_) {
+      if (status) status.textContent = '无法读取 /api/pet/skins';
+    }
+  }
+
+  function bindPetSkin() {
+    document.getElementById('petSkinApply')?.addEventListener('click', async () => {
+      const picked = document.querySelector('input[name="petSkin"]:checked');
+      if (!picked) return;
+      try {
+        await window.lumia.putJSON('/api/pet/skin', { skin: picked.value });
+        await refreshPetSkin();
+        setStatus(`外形已切换 → ${picked.value}`, 'ok');
+      } catch (e) { alert(e.message); }
+    });
+    document.getElementById('petSkinRefresh')?.addEventListener('click', refreshPetSkin);
+    document.querySelectorAll('.nav-item').forEach((item) => {
+      item.addEventListener('click', () => { if (item.dataset.panel === 'petskin') refreshPetSkin(); });
+    });
+  }
+
+  // ---- pet debug ----
+  async function refreshPetDebug() {
+    const status = document.getElementById('petDebugStatus');
+    const preview = document.getElementById('petDebugPreview');
+    try {
+      const st = await window.lumia.fetchJSON('/api/pet/state');
+      const dbg = st.debug || {};
+      status.textContent = dbg.forced
+        ? `强制 ${dbg.action} → ${st.action}（至 ${dbg.until || '?'}）`
+        : `自动 · 当前 ${st.action}（自然 ${st.natural_action || st.action}）`;
+      if (preview) {
+        preview.textContent = JSON.stringify({
+          action: st.action, skin: st.skin, bubble: st.bubble,
+          scale: st.scale, steal_cursor: st.steal_cursor, debug: dbg,
+        }, null, 2);
+      }
+      if (!dbg.forced) document.getElementById('petDebugAction').value = 'auto';
+      else document.getElementById('petDebugAction').value = dbg.action || 'auto';
+    } catch (_) {
+      if (status) status.textContent = '无法读取 /api/pet/state';
+    }
+  }
+
+  function bindPetDebug() {
+    document.getElementById('petDebugRefresh')?.addEventListener('click', refreshPetDebug);
+    document.getElementById('petDebugClear')?.addEventListener('click', async () => {
+      try { await window.lumia.postJSON('/api/pet/debug', { action: 'auto' }); await refreshPetDebug(); } catch (e) { alert(e.message); }
+    });
+    document.getElementById('petDebugApply')?.addEventListener('click', async () => {
+      const action = document.getElementById('petDebugAction').value;
+      const minutes = Number(document.getElementById('petDebugMinutes').value) || 10;
+      const bubble = document.getElementById('petDebugBubble').value.trim() || null;
+      try {
+        await window.lumia.postJSON('/api/pet/debug', { action, minutes, bubble });
+        await refreshPetDebug();
+      } catch (e) { alert(e.message); }
+    });
+    document.querySelectorAll('.nav-item').forEach((item) => {
+      item.addEventListener('click', () => { if (item.dataset.panel === 'petdebug') refreshPetDebug(); });
+    });
+  }
+
   async function init() {
     bindNav();
     bindFields();
@@ -303,6 +382,8 @@
     bindBrowseRepo();
     bindGithubAuth();
     bindSaveReset();
+    bindPetSkin();
+    bindPetDebug();
 
     try {
       baseline = clone(await window.lumia.fetchJSON('/api/config'));
@@ -327,41 +408,3 @@
 
   init();
 })();
-
-
-  // ---- pet debug ----
-  async function refreshPetDebug() {
-    const status = document.getElementById('petDebugStatus');
-    const preview = document.getElementById('petDebugPreview');
-    try {
-      const st = await window.lumia.fetchJSON('/api/pet/state');
-      const dbg = st.debug || {};
-      status.textContent = dbg.forced
-        ? `强制 ${dbg.action} → ${st.action}（至 ${dbg.until || '?'}）`
-        : `自动 · 当前 ${st.action}（自然 ${st.natural_action || st.action}）`;
-      if (preview) preview.textContent = JSON.stringify({ action: st.action, bubble: st.bubble, scale: st.scale, steal_cursor: st.steal_cursor, debug: dbg }, null, 2);
-      if (!dbg.forced) document.getElementById('petDebugAction').value = 'auto';
-      else document.getElementById('petDebugAction').value = dbg.action || 'auto';
-    } catch (_) {
-      if (status) status.textContent = '无法读取 /api/pet/state';
-    }
-  }
-  const petDebugRefresh = document.getElementById('petDebugRefresh');
-  if (petDebugRefresh) {
-    petDebugRefresh.addEventListener('click', refreshPetDebug);
-    document.getElementById('petDebugClear')?.addEventListener('click', async () => {
-      try { await window.lumia.postJSON('/api/pet/debug', { action: 'auto' }); await refreshPetDebug(); } catch (e) { alert(e.message); }
-    });
-    document.getElementById('petDebugApply')?.addEventListener('click', async () => {
-      const action = document.getElementById('petDebugAction').value;
-      const minutes = Number(document.getElementById('petDebugMinutes').value) || 10;
-      const bubble = document.getElementById('petDebugBubble').value.trim() || null;
-      try {
-        await window.lumia.postJSON('/api/pet/debug', { action, minutes, bubble });
-        await refreshPetDebug();
-      } catch (e) { alert(e.message); }
-    });
-    document.querySelectorAll('.nav-item').forEach((item) => {
-      item.addEventListener('click', () => { if (item.dataset.panel === 'petdebug') refreshPetDebug(); });
-    });
-  }
