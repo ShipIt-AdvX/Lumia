@@ -20,6 +20,10 @@ DEFAULTS = {
     "walking_enabled": True,
     "autostart": False,
     "clean_mode": True,  # 纯净模式：全屏幕布隐藏桌面/面板，只保留桌宠
+    # 桌宠大小：相对原版 MC 猫的倍数（素材烘焙为 5 倍，运行时缩放到此值）
+    # Windows 屏幕密度高、窗口多，默认更小
+    "scale": 1.5 if sys.platform == "win32" else 5.0,
+    "perch_on_windows": True,  # Windows：下落时可站在窗口顶边上
 }
 
 

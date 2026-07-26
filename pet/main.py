@@ -72,8 +72,11 @@ def main() -> int:
 
     config = Config()
 
+    # Windows 仅保留桌宠本体：不处理开机自启与纯净模式（Ubuntu 专属）
+    is_windows = sys.platform == "win32"
+
     # 已开启自启时每次启动刷新 .desktop（项目路径变动/Exec 格式升级后自愈）
-    if config.get("autostart"):
+    if not is_windows and config.get("autostart"):
         from lumia.autostart import set_autostart
 
         set_autostart(True)
@@ -82,7 +85,7 @@ def main() -> int:
     pet.show()
 
     # 纯净模式：启动即用全屏幕布隐藏桌面/面板，只保留桌宠
-    if config.get("clean_mode"):
+    if not is_windows and config.get("clean_mode"):
         pet.set_clean_mode(True, save=False)
 
     icon = pet.animator.current_frame(facing_left=True)

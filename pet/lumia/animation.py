@@ -10,18 +10,26 @@ import json
 import logging
 from pathlib import Path
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QTransform
 
 log = logging.getLogger("lumia.animation")
 
 DEFAULT_FPS = 8
+# 素材烘焙倍数：build_cat_sprites.py 中 SCALE=20，即原版 MC 猫的 5 倍
+# （运行时按 config 的 scale/BAKED_SCALE 缩放到目标倍数）
+BAKED_SCALE = 5.0
 
 
 class SpriteLibrary:
-    """扫描素材目录，持有各状态的帧序列（含镜像缓存）。"""
+    """扫描素材目录，持有各状态的帧序列（含镜像缓存）。
 
-    def __init__(self, sprites_dir: Path):
+    display_scale: 相对烘焙帧图的显示缩放倍数（1.0 = 原图尺寸）。
+    """
+
+    def __init__(self, sprites_dir: Path, display_scale: float = 1.0):
         self.sprites_dir = sprites_dir
+        self.display_scale = display_scale
         self.frames: dict[str, list[QPixmap]] = {}
         self.frames_mirrored: dict[str, list[QPixmap]] = {}
         self.fps: dict[str, int] = {}
@@ -49,6 +57,7 @@ class SpriteLibrary:
             if not frames:
                 log.warning("状态 %s 目录下没有可用帧图，已跳过", state)
                 continue
+            frames = [self._apply_scale(f) for f in frames]
             self.frames[state] = frames
             self.frames_mirrored[state] = [f.transformed(mirror) for f in frames]
             self.fps[state] = int(fps_map.get(state, DEFAULT_FPS))
@@ -60,6 +69,17 @@ class SpriteLibrary:
                 f"素材目录 {self.sprites_dir} 为空，请先运行 scripts/build_cat_sprites.py"
             )
         log.info("素材加载完成: %s", {s: len(f) for s, f in self.frames.items()})
+
+    def _apply_scale(self, pixmap: QPixmap) -> QPixmap:
+        """按 display_scale 缩放帧图；最近邻采样保留像素风格。"""
+        if abs(self.display_scale - 1.0) < 1e-3:
+            return pixmap
+        return pixmap.scaled(
+            max(1, round(pixmap.width() * self.display_scale)),
+            max(1, round(pixmap.height() * self.display_scale)),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.FastTransformation,
+        )
 
     def frame_size(self) -> tuple[int, int]:
         first = next(iter(self.frames.values()))[0]

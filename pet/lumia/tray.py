@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from PyQt6.QtGui import QAction, QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
@@ -20,11 +21,18 @@ def create_tray(app: QApplication, pet: QWidget, icon_pixmap: QPixmap) -> QSyste
 
     menu = QMenu()
     act_toggle = QAction("显示/隐藏宠物", menu)
-    act_clean = QAction("纯净模式（隐藏桌面）", menu)
-    act_clean.setCheckable(True)
     act_quit = QAction("退出", menu)
     menu.addAction(act_toggle)
-    menu.addAction(act_clean)
+    # Windows 仅保留桌宠本体，不提供纯净模式入口
+    if sys.platform != "win32":
+        act_clean = QAction("纯净模式（隐藏桌面）", menu)
+        act_clean.setCheckable(True)
+        menu.addAction(act_clean)
+        # 菜单弹出前同步勾选状态（可能已通过右键菜单/Esc 切换过）
+        menu.aboutToShow.connect(lambda: act_clean.setChecked(pet.is_clean_mode()))
+        act_clean.triggered.connect(
+            lambda checked: (log.info("托盘操作: 纯净模式 = %s", checked), pet.set_clean_mode(checked))
+        )
     menu.addSeparator()
     menu.addAction(act_quit)
 
@@ -37,11 +45,6 @@ def create_tray(app: QApplication, pet: QWidget, icon_pixmap: QPixmap) -> QSyste
             pet.show()
 
     act_toggle.triggered.connect(toggle_visible)
-    # 菜单弹出前同步勾选状态（可能已通过右键菜单/Esc 切换过）
-    menu.aboutToShow.connect(lambda: act_clean.setChecked(pet.is_clean_mode()))
-    act_clean.triggered.connect(
-        lambda checked: (log.info("托盘操作: 纯净模式 = %s", checked), pet.set_clean_mode(checked))
-    )
     act_quit.triggered.connect(lambda: (log.info("托盘操作: 退出"), app.quit()))
     # 单击托盘图标也切换显示
     tray.activated.connect(
