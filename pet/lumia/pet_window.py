@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import QPoint, Qt, QTimer
+from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QGuiApplication, QMouseEvent, QPaintEvent, QPainter
 from PyQt6.QtWidgets import QLabel, QMenu, QWidget
 
@@ -21,33 +22,39 @@ log = logging.getLogger("lumia.window")
 
 TICK_MS = 33  # 主循环 ~30Hz
 
+_FONT_FAMILY: str | None = None  # 字体只注册一次（切皮肤重复 addApplicationFont 会累积）
+
 
 
 def _bubble_font(point_size: int = 11) -> QFont:
     """气泡用 Minecraft AE（优先 pet/assets/fonts，其次仓库根 assets/）。"""
-    here = Path(__file__).resolve().parent.parent
-    candidates = [
-        here / "assets" / "fonts" / "Minecraft_AE.ttf",
-        here.parent / "assets" / "Minecraft_AE.ttf",
-    ]
-    family = "Minecraft AE"
-    for font_path in candidates:
-        if not font_path.exists():
-            continue
-        fid = QFontDatabase.addApplicationFont(str(font_path))
-        fams = QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
-        if fams:
-            family = fams[0]
-            log.info("气泡字体: %s (%s)", family, font_path)
-            break
-    else:
-        log.warning("未找到 Minecraft_AE.ttf，气泡回退系统字体")
-    font = QFont(family, point_size)
+    global _FONT_FAMILY
+    if _FONT_FAMILY is None:
+        here = Path(__file__).resolve().parent.parent
+        candidates = [
+            here / "assets" / "fonts" / "Minecraft_AE.ttf",
+            here.parent / "assets" / "Minecraft_AE.ttf",
+        ]
+        _FONT_FAMILY = "Minecraft AE"
+        for font_path in candidates:
+            if not font_path.exists():
+                continue
+            fid = QFontDatabase.addApplicationFont(str(font_path))
+            fams = QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+            if fams:
+                _FONT_FAMILY = fams[0]
+                log.info("气泡字体: %s (%s)", _FONT_FAMILY, font_path)
+                break
+        else:
+            log.warning("未找到 Minecraft_AE.ttf，气泡回退系统字体")
+    font = QFont(_FONT_FAMILY, point_size)
     font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
     return font
 
 
 class PetWindow(QWidget):
+    _brain_debug_done = pyqtSignal(str, object)  # 后台调试请求结果 -> 主线程
+
     def __init__(self, sprites_dir: Path, config: Config):
         super().__init__()
         self.config = config
@@ -79,6 +86,12 @@ class PetWindow(QWidget):
         self._scale = 1.0
         self._director_action = "idle"
         self._bubble_until = 0.0
+        # 重绘与缩放缓存：动画实际 ~8fps，30Hz 主循环里画面没变就不重绘；
+        # 全屏脸的平滑缩放代价极高，只在帧/尺寸变化时重算
+        self._paint_key: tuple | None = None
+        self._scaled_key: tuple | None = None
+        self._scaled_frame = None
+        self._brain_debug_done.connect(self._on_brain_debug_result)
 
         self._bubble = QLabel(self)
         self._bubble.setWordWrap(True)
@@ -287,15 +300,33 @@ class PetWindow(QWidget):
 
         self.animator.set_state(self.machine.state)
         self.animator.update(dt)
-        self.update()
+        # 画面未变（同帧同朝向）则跳过重绘，避免 30Hz 无效全窗口刷新
+        key = (self.animator.state, self.animator.frame_index, self.machine.facing_left)
+        if key != self._paint_key:
+            self._paint_key = key
+            self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         frame = self.animator.current_frame(self.machine.facing_left)
-        # 全屏脸 / display_scale / 导演缩放：窗口与原图不一致时拉伸铺满
+        # 全屏脸 / display_scale / 导演缩放：窗口与原图不一致时拉伸铺满；
+        # 平滑缩放开销大，结果按 (状态, 帧, 朝向, 尺寸) 缓存，重绘直接复用
         if frame.width() != self.width() or frame.height() != self.height():
-            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            painter.drawPixmap(self.rect(), frame)
+            key = (
+                self.animator.state,
+                self.animator.frame_index,
+                self.machine.facing_left,
+                self.width(),
+                self.height(),
+            )
+            if key != self._scaled_key or self._scaled_frame is None:
+                self._scaled_frame = frame.scaled(
+                    self.size(),
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._scaled_key = key
+            painter.drawPixmap(0, 0, self._scaled_frame)
         else:
             painter.drawPixmap(0, 0, frame)
 
@@ -389,6 +420,7 @@ class PetWindow(QWidget):
         act_quit = menu.addAction("退出")
 
         chosen = menu.exec(event.globalPos())
+        menu.deleteLater()  # 菜单以窗口为 parent，不销毁会随右键次数累积
         if chosen is act_walk:
             self.toggle_walking(act_walk.isChecked())
         elif chosen is act_clean:
@@ -441,6 +473,9 @@ class PetWindow(QWidget):
         self._base_w, self._base_h = w, h
         self._fullscreen_face = is_fullscreen_skin(path)
         self._scale = 1.0
+        self._paint_key = None    # 新皮肤同名状态/帧号也是新画面，强制重绘
+        self._scaled_key = None
+        self._scaled_frame = None
         self.setFixedSize(w, h)
         bubble_pt = 22 if self._fullscreen_face else 11
         self._bubble.setFont(_bubble_font(bubble_pt))
@@ -464,36 +499,44 @@ class PetWindow(QWidget):
             self._push_skin_to_brain(skin_id)
 
     def _push_skin_to_brain(self, skin_id: str) -> None:
-        """右键本地切换时回写大脑，与 Windows 设置对齐。"""
-        import json
-        import urllib.error
-        import urllib.request
-
+        """右键本地切换时回写大脑，与 Windows 设置对齐（后台线程，不阻主线程）。"""
         url = str(self.config.get("brain_url") or "").rstrip("/")
         if not url:
             return
-        try:
-            body = json.dumps({"skin": skin_id}).encode()
-            req = urllib.request.Request(
-                f"{url}/api/pet/skin",
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="PUT",
-            )
-            with urllib.request.urlopen(req, timeout=4) as resp:
-                resp.read()
-            log.info("已同步外形到大脑: %s", skin_id)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            log.warning("同步外形到大脑失败: %s", exc)
-
+    
+        def worker() -> None:
+            import json
+            import urllib.error
+            import urllib.request
+    
+            try:
+                body = json.dumps({"skin": skin_id}).encode()
+                req = urllib.request.Request(
+                    f"{url}/api/pet/skin",
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                    method="PUT",
+                )
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    resp.read()
+                log.info("已同步外形到大脑: %s", skin_id)
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                log.warning("同步外形到大脑失败: %s", exc)
+    
+        threading.Thread(target=worker, daemon=True, name="skin-push").start()
+    
     def _force_brain_debug(self, action: str, minutes: float = 15) -> None:
-        """向电脑大脑 POST /api/pet/debug；失败则本地直接套导演。"""
-        import json
-        import urllib.error
-        import urllib.request
-
+        """向电脑大脑 POST /api/pet/debug（后台线程）；失败则本地直接套导演。"""
         url = str(self.config.get("brain_url") or "").rstrip("/")
-        if url:
+        if not url:
+            self._apply_local_debug(action)
+            return
+    
+        def worker() -> None:
+            import json
+            import urllib.error
+            import urllib.request
+    
             try:
                 body = json.dumps({"action": action, "minutes": minutes}).encode()
                 req = urllib.request.Request(
@@ -504,15 +547,25 @@ class PetWindow(QWidget):
                 )
                 with urllib.request.urlopen(req, timeout=4) as resp:
                     data = json.loads(resp.read().decode())
-                snap = data.get("state") or {}
-                if snap:
-                    self.apply_director(snap)
-                self.say(f"调试 → {action}", ms=2000)
-                log.info("已请求大脑调试: %s", action)
-                return
+                self._brain_debug_done.emit(action, data.get("state") or {})
             except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
                 log.warning("大脑调试失败，改本地强制: %s", exc)
-        # 离线兜底
+                self._brain_debug_done.emit(action, None)
+    
+        threading.Thread(target=worker, daemon=True, name="brain-debug").start()
+    
+    def _on_brain_debug_result(self, action: str, snap: object) -> None:
+        """主线程：应用大脑调试结果，None 表示请求失败走本地兜底。"""
+        if snap is None:
+            self._apply_local_debug(action)
+            return
+        if snap:
+            self.apply_director(snap)
+        self.say(f"调试 → {action}", ms=2000)
+        log.info("已请求大脑调试: %s", action)
+    
+    def _apply_local_debug(self, action: str) -> None:
+        """离线兜底：本地直接套导演模式。"""
         mode = None if action in ("auto", "idle") else action
         self.machine.set_director_mode(mode)
         bubbles = {

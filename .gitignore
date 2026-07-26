@@ -16,3 +16,4 @@ backend/lumia.json
 .env
 firmware/**/.pio/
 firmware/**/config.h
+*.pyc

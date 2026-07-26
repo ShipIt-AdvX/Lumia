@@ -105,6 +105,11 @@ class Animator:
                 break
             self._index = (self._index + 1) % n
 
+    @property
+    def frame_index(self) -> int:
+        """当前帧序号（供绘制层判断画面是否变化/缓存缩放结果）。"""
+        return self._index
+
     def current_frame(self, facing_left: bool) -> QPixmap:
         native_left = self.lib.native_facing == "left"
         use_native = facing_left == native_left
