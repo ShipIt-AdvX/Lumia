@@ -22,7 +22,7 @@
   <div class="lumia-window">
     <div class="lumia-titlebar">
       <button class="tb-btn tb-fs" id="tbFs">全屏</button>
-      <div class="tb-title" id="tbTitle">Lumia · 开发者面板</div>
+      <div class="tb-title" id="tbTitle">Lumia • 开发者面板</div>
       <button class="tb-btn tb-close" id="tbClose">✕</button>
     </div>
 
@@ -99,7 +99,7 @@
         const mins = (sec) => Math.round((sec || 0) / 60);
         window.lumia.dev.emit({
           type: 'status', title: 'Lumia 今日状态',
-          message: `已开发 ${mins(c.used_seconds)} / ${mins(c.allowed_effective_seconds)} 分钟 · 状态 ${c.state}`,
+          message: `已开发 ${mins(c.used_seconds)} / ${mins(c.allowed_effective_seconds)} 分钟 • 状态 ${c.state}`,
           actions: [{ id: 'achievements', label: '成就墙' }],
         });
       } catch (_) {

@@ -350,13 +350,13 @@ function closeFloat(win) {
 }
 
 function openSettings() {
-  createFloat({ key: 'settings', file: 'settings.html', width: 720, height: 560, title: 'Lumia · 设置' });
+  createFloat({ key: 'settings', file: 'settings.html', width: 720, height: 560, title: 'Lumia • 设置' });
 }
 function openAchievements() {
-  createFloat({ key: 'achievements', file: 'achievements.html', width: 560, height: 600, title: 'Lumia · 今日成就墙' });
+  createFloat({ key: 'achievements', file: 'achievements.html', width: 560, height: 600, title: 'Lumia • 今日成就墙' });
 }
 function openDevPanel() {
-  createFloat({ key: 'dev', file: 'dev.html', width: 300, height: 460, title: 'Lumia · 开发者面板', noRetract: true });
+  createFloat({ key: 'dev', file: 'dev.html', width: 300, height: 460, title: 'Lumia • 开发者面板', noRetract: true });
 }
 
 function enqueuePopup(event) {
@@ -854,7 +854,7 @@ ipcMain.on('open-external', (_e, url) => {
 
 function buildTray() {
   tray = new Tray(makeTrayIcon());
-  tray.setToolTip('Lumia · 不要在我面前猝死');
+  tray.setToolTip('Lumia • 不要在我面前猝死');
   const menu = Menu.buildFromTemplate([
     { label: '查看今日状态', click: showStatusPopup },
     { label: '成就墙', click: openAchievements },
@@ -875,7 +875,7 @@ async function showStatusPopup() {
     const mins = (sec) => Math.round((sec || 0) / 60);
     enqueuePopup({
       type: 'status', title: 'Lumia 今日状态',
-      message: `已开发 ${mins(c.used_seconds)} / ${mins(c.allowed_effective_seconds)} 分钟 · 状态 ${c.state}`,
+      message: `已开发 ${mins(c.used_seconds)} / ${mins(c.allowed_effective_seconds)} 分钟 • 状态 ${c.state}`,
       actions: [{ id: 'achievements', label: '成就墙' }],
     });
   } catch (_) {

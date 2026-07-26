@@ -38,7 +38,7 @@
   <div class="lumia-window">
     <div class="lumia-titlebar">
       <button class="tb-btn tb-fs" id="tbFs">全屏</button>
-      <div class="tb-title" id="tbTitle">Lumia · 今日成就墙</div>
+      <div class="tb-title" id="tbTitle">Lumia • 今日成就墙</div>
       <button class="tb-btn tb-close" id="tbClose">✕</button>
     </div>
 
@@ -102,7 +102,7 @@
           const ach = await window.lumia.fetchJSON(`/api/achievements/today?offset=${offset}&limit=${PAGE}`);
           if (offset === 0) {
             document.getElementById('sub').textContent =
-              `${ach.date} · 共 ${ach.total_commits} 次提交`;
+              `${ach.date} • 共 ${ach.total_commits} 次提交`;
             box.innerHTML = '';
             for (const r of ach.repos || []) {
               if (r.error) {
@@ -154,7 +154,7 @@
           const row = document.createElement('div');
           row.className = 'idea';
           const label = idea.kind === 'audio' ? '🎙 语音灵感' : esc(idea.text);
-          row.innerHTML = `${label} <span class="time">· ${esc((idea.ts || '').slice(11, 16))}</span>`;
+          row.innerHTML = `${label} <span class="time">• ${esc((idea.ts || '').slice(11, 16))}</span>`;
           box.appendChild(row);
         }
       } catch (e) {}
